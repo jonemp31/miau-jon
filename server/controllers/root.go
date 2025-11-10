@@ -26,3 +26,12 @@ func Root(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusOK, jsonData)
 }
+
+// Health check endpoint for Docker
+func Health(ctx echo.Context) error {
+	return ctx.JSON(http.StatusOK, map[string]any{
+		"status":  "healthy",
+		"service": "whatsmiau",
+		"time":    time.Now().Unix(),
+	})
+}

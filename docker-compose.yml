@@ -1,40 +1,210 @@
-version: '3.8'
+﻿# =================== WHATSMIAU STACK PARA PORTAINER ===================
+# Stack completa do WhatsMiau com todos os serviços necessários
+# Configurada para uso em produção com Docker Swarm via Portainer
+# Otimizada para alta escalabilidade (100-300 conexões simultâneas)
 
 services:
-  whatsmiau:
-    build: .
-    container_name: whatsmiau
+  whatsmiau_api:
+    # IMAGEM DISPONÍVEL: https://hub.docker.com/r/jondevsouza31/miau-jon
+    image: jondevsouza31/miau-jon:latest
     ports:
-      - "8081:8081"
+      - "8097:8097"
+    networks:
+      - network_swarm_public
     environment:
-      - REDIS_URL=redis:6379
-      - DB_URL=postgres://whatsmiau:123123123@localhost:5432/whatsmiau?sslmode=disable
-    volumes:
-      - whatsmeow:/app/data
-    depends_on:
-      - redis
-    restart: unless-stopped
+      # =================== API CONFIGURATION ===================
+      - PORT=8097
+      - DEBUG_MODE=false
+      - DEBUG_WHATSMEOW=false
+      
+      # =================== DATABASE CONFIGURATION (POSTGRESQL) ===================
+      - DIALECT_DB=postgres
+      - DB_URL=postgres://whatsmiau:31121997digiTal100k@postgres_whatsmiau:5432/whatsmiau?sslmode=disable
+      
+      # =================== REDIS CONFIGURATION ===================
+      - REDIS_URL=redis_whatsmiau:6379
+      - REDIS_PASSWORD=31121997digiTal100k
+      - REDIS_TLS=false
+      
+      # =================== SECURITY ===================
+      - API_KEY=31121997digiTal100k
+      
+      # =================== SCALABILITY SETTINGS ===================
+      # Buffer de eventos webhook (10.000 = alta escala)
+      - EMITTER_BUFFER_SIZE=10000
+      # Handlers simultâneos (500 = alta escala)
+      - HANDLER_SEMAPHORE_SIZE=500
+      
+      # =================== DEFAULT INSTANCE SETTINGS ===================
+      # Webhook obrigatório - URL padrão para todas as instâncias
+      - DEFAULT_WEBHOOK_URL=http://192.168.100.149:5680/webhook/whatsmiau
+      
+      # Auto-features (aplicados na criação de novas instâncias)
+      - DEFAULT_AUTO_RECEIPT=true          # Envia 2 checks cinza automaticamente
+      - DEFAULT_AUTO_READ=true             # Marca como lido após 8 segundos
+      - DEFAULT_READ_MESSAGES=true         # Habilita leitura de mensagens
+      - DEFAULT_ALWAYS_ONLINE=false        # AlwaysOnline (15min interval)
+      - DEFAULT_REJECT_CALLS=false         # Rejeita chamadas automaticamente
+      - DEFAULT_MSG_CALL=                  # Mensagem ao rejeitar chamada
+      
+      # =================== WEBHOOK EVENT FILTERING ===================
+      # Eventos a enviar para webhook (separados por vírgula ou "All")
+      # Opções: MESSAGES_UPSERT, MESSAGES_UPDATE, MESSAGES_DELETE, CONTACTS_UPSERT,
+      #         CONNECTION_UPDATE, GROUPS_UPSERT, GROUP_PARTICIPANTS_UPDATE, CALL
+      - DEFAULT_WEBHOOK_EVENTS=All
+      
+      # Enviar webhooks separados por tipo de evento
+      - DEFAULT_WEBHOOK_BY_EVENTS=false
+      
+      # Filtros globais de eventos
+      - DEFAULT_SKIP_GROUPS=false          # Pular eventos de grupos
+      - DEFAULT_SKIP_BROADCASTS=false      # Pular broadcasts/status
+      - DEFAULT_SKIP_OWN_MESSAGES=false    # Pular mensagens próprias
+      
+      # =================== GOOGLE CLOUD STORAGE (OPCIONAL) ===================
+      - GCS_ENABLED=false
+      - GCS_BUCKET=whatsmiau
+      - GCS_URL=https://storage.googleapis.com
+      
+      # =================== GOOGLE CLOUD LOGGING (OPCIONAL) ===================
+      - GCL_ENABLED=false
+      - GCL_APP_NAME=whatsmiau-br-1
+      - GCL_PROJECT_ID=
+      
+      # =================== PROXY SETTINGS (OPCIONAL) ===================
+      # Lista de proxies (separados por vírgula)
+      # Formato: <SOCKS5|HTTP|HTTPS>://<username>:<password>@<host>:<port>
+      - PROXY_ADDRESSES=
+      - PROXY_STRATEGY=RANDOM              # RANDOM ou BALANCED
+      - PROXY_NO_MEDIA=false               # Não usar proxy para mídia
+      
+      # =================== TIMEZONE ===================
+      - TZ=America/Sao_Paulo
 
-  redis:
-    image: redis:latest
-    container_name: redis
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      placement:
+        constraints: [node.role == manager]
+      resources:
+        limits:
+          cpus: "4"                        # 4 CPUs para alta escala
+          memory: 4096MB                   # 4GB RAM para 300+ conexões
+        reservations:
+          cpus: "1"
+          memory: 1024MB
 
-  db:
-    image: postgres:latest
-    container_name: postgres
-    volumes:
-      - pg-data:/pg-data
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8097/health"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # =================== BANCO DE DADOS POSTGRESQL ===================
+  postgres_whatsmiau:
+    image: postgres:16-alpine
     environment:
-      POSTGRES_USER: whatsmiau
-      POSTGRES_PASSWORD: 123456
-      POSTGRES_DB: whatsmiau
+      # Configurações básicas
+      - POSTGRES_USER=whatsmiau
+      - POSTGRES_PASSWORD=31121997digiTal100k
+      - POSTGRES_DB=whatsmiau
+      
+      # Otimizações para alta escala
+      - POSTGRES_MAX_CONNECTIONS=200       # 200 conexões simultâneas
+      - POSTGRES_SHARED_BUFFERS=512MB      # Buffer de memória compartilhada
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=2GB  # Cache efetivo
+      - POSTGRES_WORK_MEM=16MB             # Memória de trabalho por operação
+      - POSTGRES_MAINTENANCE_WORK_MEM=128MB
+      
+    volumes:
+      - postgres_data_whatsmiau:/var/lib/postgresql/data
+      
+    networks: 
+      - network_swarm_public
+      
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '2'                        # 2 CPUs para banco
+          memory: 2048MB                   # 2GB RAM
+        reservations:
+          cpus: '0.5'
+          memory: 512MB
+          
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U whatsmiau -d whatsmiau"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # =================== REDIS (CACHE E STORAGE) ===================
+  redis_whatsmiau:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --requirepass 31121997digiTal100k
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --appendonly yes
+      --appendfsync everysec
+      
+    volumes:
+      - redis_data_whatsmiau:/data
+      
+    networks:
+      - network_swarm_public
+      
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'                        # 1 CPU para Redis
+          memory: 1536MB                   # 1.5GB RAM
+        reservations:
+          cpus: '0.25'
+          memory: 256MB
+          
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 volumes:
-  redis-data:
-    driver: local
-  whatsmeow:
-    driver: local
+  postgres_data_whatsmiau:
+    name: postgres_data_whatsmiau
+    external: true
+  redis_data_whatsmiau:
+    name: redis_data_whatsmiau
+    external: true
+
+networks:
+  network_swarm_public:
+    name: network_swarm_public
+    external: true
