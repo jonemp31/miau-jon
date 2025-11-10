@@ -9,9 +9,10 @@ import (
 type Wook string
 
 const (
-	WookMessagesUpsert Wook = "messages.upsert"
-	WookMessagesUpdate Wook = "messages.update"
-	WookContactsUpsert Wook = "contacts.upsert"
+	WookMessagesUpsert   Wook = "messages.upsert"
+	WookMessagesUpdate   Wook = "messages.update"
+	WookContactsUpsert   Wook = "contacts.upsert"
+	WookConnectionUpdate Wook = "connection.update"
 )
 
 type WookEvent[data any] struct {
@@ -267,3 +268,7 @@ type WookContact struct {
 }
 
 type WookContactUpsertData []WookContact
+
+type WookConnectionUpdateData struct {
+	Status string `json:"status,omitempty"` // "open" ou "close"
+}

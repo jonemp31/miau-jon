@@ -1,11 +1,13 @@
 package whatsmiau
 
 import (
+	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	cache "github.com/patrickmn/go-cache"
 	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/verbeux-ai/whatsmiau/env"
 	"github.com/verbeux-ai/whatsmiau/interfaces"
@@ -28,8 +30,9 @@ type Whatsmiau struct {
 	repo             interfaces.InstanceRepository
 	qrCache          *xsync.Map[string, string]
 	observerRunning  *xsync.Map[string, bool]
-	instanceCache    *xsync.Map[string, models.Instance]
+	instanceCache    *cache.Cache // Changed from xsync.Map to go-cache for better performance
 	lockConnection   *xsync.Map[string, *sync.Mutex]
+	alwaysOnlineIDs  *xsync.Map[string, bool] // Track instances with AlwaysOnline enabled
 	emitter          chan emitter
 	httpClient       *http.Client
 	fileStorage      interfaces.Storage
@@ -111,24 +114,42 @@ func LoadMiau(ctx context.Context, container *sqlstore.Container) {
 		}
 	}
 
+	// Configuração agressiva de HTTP Transport para alta escala
+	// Otimizado para múltiplos webhooks N8N com replicas
+	transport := &http.Transport{
+		MaxIdleConns:          500,               // Pool grande para múltiplos webhooks
+		MaxIdleConnsPerHost:   50,                // Muitas conexões por replica N8N
+		IdleConnTimeout:       120 * time.Second, // Keep-alive generoso
+		MaxConnsPerHost:       100,               // Limite de conexões ativas por host
+		TLSHandshakeTimeout:   5 * time.Second,   // Timeout agressivo para TLS
+		ResponseHeaderTimeout: 5 * time.Second,   // Timeout para headers
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,  // Timeout de conexão
+			KeepAlive: 30 * time.Second, // Keep-alive TCP
+		}).DialContext,
+	}
+
 	instance = &Whatsmiau{
 		clients:         clients,
 		container:       container,
 		logger:          clientLog,
 		repo:            repo,
 		qrCache:         xsync.NewMap[string, string](),
-		instanceCache:   xsync.NewMap[string, models.Instance](),
+		instanceCache:   cache.New(5*time.Minute, 10*time.Minute), // 5min TTL, 10min cleanup
 		observerRunning: xsync.NewMap[string, bool](),
 		lockConnection:  xsync.NewMap[string, *sync.Mutex](),
+		alwaysOnlineIDs: xsync.NewMap[string, bool](), // Track AlwaysOnline instances
 		emitter:         make(chan emitter, env.Env.EmitterBufferSize),
 		httpClient: &http.Client{
-			Timeout: time.Second * 30, // TODO: load from env
+			Transport: transport,
+			Timeout:   time.Second * 30, // Timeout total da requisição
 		},
 		fileStorage:      storage,
 		handlerSemaphore: make(chan struct{}, env.Env.HandlerSemaphoreSize),
 	}
 
 	go instance.startEmitter()
+	go instance.keepAlwaysOnlineManager() // Centralized AlwaysOnline manager with batching
 
 	clients.Range(func(id string, client *whatsmeow.Client) bool {
 		zap.L().Info("stating event handler", zap.String("jid", client.Store.ID.String()))
@@ -212,11 +233,7 @@ func (s *Whatsmiau) hasSomeDevice(client *whatsmeow.Client) bool {
 	}
 
 	noDevice := client.Store.ID == nil
-	if noDevice {
-		return false
-	}
-
-	return true
+	return !noDevice
 }
 
 func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
@@ -278,6 +295,10 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 				}
 
 				zap.L().Info("device connected successfully", zap.String("id", id))
+
+				// Emitir webhook de conexão estabelecida
+				go s.emitConnectionUpdate(id, "open")
+
 				client.RemoveEventHandlers()
 				client.AddEventHandler(s.Handle(id))
 				if _, err := s.repo.Update(context.Background(), id, &models.Instance{
@@ -285,6 +306,12 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 				}); err != nil {
 					zap.L().Error("failed to update instance after login", zap.Error(err))
 				}
+
+				// Registrar no manager centralizado se AlwaysOnline está ativo
+				if instanceFound := s.getInstance(id); instanceFound != nil && instanceFound.AlwaysOnline {
+					s.enableAlwaysOnline(id)
+				}
+
 				s.qrCache.Delete(id)
 				return
 			}

@@ -46,10 +46,19 @@ func (s *Instance) Create(ctx echo.Context) error {
 	request.ID = request.InstanceName
 	if request.Instance == nil {
 		request.Instance = &models.Instance{
-			ID: request.InstanceName,
+			ID:           request.InstanceName,
+			AlwaysOnline: true, // Padrão: sempre online
+			ReadMessages: true, // Padrão: marcar mensagens como lidas após 8s
 		}
 	} else {
 		request.Instance.ID = request.InstanceName
+		// Define valores padrão se não foram especificados
+		if !request.Instance.AlwaysOnline {
+			request.Instance.AlwaysOnline = true
+		}
+		if !request.Instance.ReadMessages {
+			request.Instance.ReadMessages = true
+		}
 	}
 	request.RemoteJID = ""
 
@@ -125,14 +134,23 @@ func (s *Instance) List(ctx echo.Context) error {
 	var response []dto.ListInstancesResponse
 	for _, instance := range result {
 		jid, err := types.ParseJID(instance.RemoteJID)
+		ownerJid := ""
 		if err != nil {
 			zap.L().Error("failed to parse jid", zap.Error(err))
+			ownerJid = instance.RemoteJID
+		} else {
+			ownerJid = jid.ToNonAD().String()
 		}
+
+		// Buscar status da instância
+		status, _ := s.whatsmiau.Status(instance.ID)
 
 		response = append(response, dto.ListInstancesResponse{
 			Instance:     &instance,
-			OwnerJID:     jid.ToNonAD().String(),
+			OwnerJID:     ownerJid,
+			RemoteJid:    ownerJid, // Alias para compatibilidade
 			InstanceName: instance.ID,
+			Status:       string(status),
 		})
 	}
 
@@ -225,28 +243,34 @@ func (s *Instance) Status(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusUnprocessableEntity, err, "failed to bind request body")
 	}
 
-	result, err := s.repo.List(c, request.ID)
-	if err != nil {
-		zap.L().Error("failed to list instances", zap.Error(err))
-		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to list instances")
-	}
-
-	if len(result) == 0 {
-		return utils.HTTPFail(ctx, http.StatusNotFound, err, "instance not found")
-	}
-
+	// Otimização: busca status diretamente sem consultar Redis antes
 	status, err := s.whatsmiau.Status(request.ID)
 	if err != nil {
 		zap.L().Error("failed to get status instance", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to get status instance")
 	}
 
+	// Buscar remoteJid da instância
+	var remoteJid string
+	result, err := s.repo.List(c, request.ID)
+	if err == nil && len(result) > 0 {
+		// Parse JID para formato limpo
+		jid, parseErr := types.ParseJID(result[0].RemoteJID)
+		if parseErr == nil {
+			remoteJid = jid.ToNonAD().String()
+		} else {
+			remoteJid = result[0].RemoteJID
+		}
+	}
+
 	return ctx.JSON(http.StatusOK, dto.StatusInstanceResponse{
-		ID:     request.ID,
-		Status: string(status),
+		ID:        request.ID,
+		Status:    string(status),
+		RemoteJid: remoteJid,
 		Instance: &dto.StatusInstanceResponseEvolutionCompatibility{
 			InstanceName: request.ID,
 			State:        string(status),
+			RemoteJid:    remoteJid,
 		},
 	})
 }

@@ -192,11 +192,12 @@ Same Pattern: https://www.postman.com/agenciadgcode/evolution-api/overview
 
 The application can send webhook events for the following actions:
 
-| Event             | Description                                         |
-|-------------------|-----------------------------------------------------|
-| `MESSAGES_UPSERT` | Triggered when a new message is received.           |
-| `MESSAGES_UPDATE` | Triggered when a message status changes (e.g., read). |
-| `CONTACTS_UPSERT` | Triggered when a contact is created or updated.     |
+| Event                | Description                                         |
+|----------------------|-----------------------------------------------------|
+| `MESSAGES_UPSERT`    | Triggered when a new message is received.           |
+| `MESSAGES_UPDATE`    | Triggered when a message status changes (e.g., read). |
+| `CONTACTS_UPSERT`    | Triggered when a contact is created or updated.     |
+| `CONNECTION_UPDATE`  | Triggered when instance connects or disconnects.    |
 
 
 ## Did you like project?

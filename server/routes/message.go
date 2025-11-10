@@ -16,6 +16,8 @@ func Message(group *echo.Group) {
 	group.POST("/audio", controller.SendAudio)
 	group.POST("/document", controller.SendDocument)
 	group.POST("/image", controller.SendImage)
+	group.POST("/video", controller.SendVideo)
+	group.POST("/missedCall", controller.SendMissedCall)
 }
 
 func MessageEVO(group *echo.Group) {
@@ -27,4 +29,6 @@ func MessageEVO(group *echo.Group) {
 	group.POST("/sendWhatsAppAudio/:instance", controller.SendAudio) // is always whatsapp 🤣
 	group.POST("/sendMedia/:instance", controller.SendMedia)
 	group.POST("/sendReaction/:instance", controller.SendReaction)
+	group.POST("/sendVideo/:instance", controller.SendVideo)
+	group.POST("/sendMissedCall/:instance", controller.SendMissedCall) // EXPERIMENTAL - Use at your own risk
 }

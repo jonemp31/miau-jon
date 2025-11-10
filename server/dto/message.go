@@ -65,6 +65,7 @@ type SendAudioRequest struct {
 	MentionsEveryOne bool                  `json:"mentionsEveryOne,omitempty"`
 	Mentioned        []string              `json:"mentioned,omitempty"`
 	Encoding         bool                  `json:"encoding,omitempty"`
+	ViewOnce         bool                  `json:"viewOnce,omitempty"`
 }
 
 type SendAudioResponseMessage struct {
@@ -138,6 +139,7 @@ type SendDocumentRequest struct {
 	Quoted           *MessageRequestQuoted `json:"quoted,omitempty"`
 	MentionsEveryOne bool                  `json:"mentionsEveryOne,omitempty"`
 	Mentioned        []string              `json:"mentioned,omitempty"`
+	ViewOnce         bool                  `json:"viewOnce,omitempty"`
 }
 
 type SendDocumentResponse struct {
@@ -190,4 +192,46 @@ type SendReactionResponse struct {
 	InstanceId       string             `json:"instanceId,omitempty"`
 	Source           string             `json:"source,omitempty"`
 	Status           string             `json:"status,omitempty"`
+}
+
+type SendVideoRequest struct {
+	InstanceID       string                `param:"instance"`
+	Number           string                `json:"number,omitempty" validate:"required"`
+	Mimetype         string                `json:"mimetype,omitempty"`
+	Caption          string                `json:"caption,omitempty"`
+	Video            string                `json:"video,omitempty" validate:"required"` // URL do vídeo
+	Delay            int                   `json:"delay,omitempty" validate:"omitempty,min=0,max=300000"`
+	Quoted           *MessageRequestQuoted `json:"quoted,omitempty"`
+	MentionsEveryOne bool                  `json:"mentionsEveryOne,omitempty"`
+	Mentioned        []string              `json:"mentioned,omitempty"`
+	ViewOnce         bool                  `json:"viewOnce,omitempty"`
+}
+
+type SendVideoResponse struct {
+	Key              MessageResponseKey `json:"key,omitempty"`
+	PushName         string             `json:"pushName,omitempty"`
+	Status           string             `json:"status,omitempty"`
+	Message          any                `json:"message,omitempty"`
+	ContextInfo      any                `json:"contextInfo,omitempty"`
+	MessageType      string             `json:"messageType,omitempty"`
+	MessageTimestamp int                `json:"messageTimestamp,omitempty"`
+	InstanceId       string             `json:"instanceId,omitempty"`
+	Source           string             `json:"source,omitempty"`
+}
+
+// SendMissedCallRequest - Estrutura para simular uma chamada perdida
+// AVISO: Este recurso é EXPERIMENTAL e pode violar os Termos de Serviço do WhatsApp
+// Use apenas em ambientes de desenvolvimento/teste e por sua conta e risco
+type SendMissedCallRequest struct {
+	InstanceID string `param:"instance" validate:"required"`
+	Number     string `json:"number,omitempty" validate:"required"`
+	VideoCall  bool   `json:"videoCall,omitempty"` // false = chamada de voz, true = chamada de vídeo
+}
+
+type SendMissedCallResponse struct {
+	Key              MessageResponseKey `json:"key,omitempty"`
+	Status           string             `json:"status,omitempty"`
+	MessageType      string             `json:"messageType,omitempty"`
+	MessageTimestamp int                `json:"messageTimestamp,omitempty"`
+	InstanceId       string             `json:"instanceId,omitempty"`
 }

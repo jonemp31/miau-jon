@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/emersion/go-vcard"
 	"github.com/google/uuid"
+	cache "github.com/patrickmn/go-cache"
 	"github.com/verbeux-ai/whatsmiau/models"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -42,17 +44,19 @@ func (s *Whatsmiau) getInstance(id string) *models.Instance {
 		return nil
 	}
 
-	s.instanceCache.Store(id, res[0])
+	s.instanceCache.Set(id, res[0], cache.DefaultExpiration)
 
 	return &res[0]
 }
 
 func (s *Whatsmiau) getInstanceCached(id string) *models.Instance {
-	instanceCached, ok := s.instanceCache.Load(id)
-	if ok {
-		return &instanceCached
+	// Try to get from cache first
+	if cached, found := s.instanceCache.Get(id); found {
+		instance := cached.(models.Instance)
+		return &instance
 	}
 
+	// Cache miss - fetch from database
 	ctx, c := context.WithTimeout(context.Background(), time.Second*5)
 	defer c()
 
@@ -66,51 +70,143 @@ func (s *Whatsmiau) getInstanceCached(id string) *models.Instance {
 		return nil
 	}
 
-	s.instanceCache.Store(id, res[0])
-	go func() {
-		// expires in 10sec
-		time.Sleep(time.Second * 10)
-		s.instanceCache.Delete(id)
-	}()
+	// Store in cache with automatic TTL (5min expiration, 10min cleanup)
+	s.instanceCache.Set(id, res[0], cache.DefaultExpiration)
 
 	return &res[0]
 }
 
 func (s *Whatsmiau) startEmitter() {
 	for event := range s.emitter {
-		data, err := json.Marshal(event.data)
-		if err != nil {
-			zap.L().Error("failed to marshal event", zap.Error(err))
-			return
+		s.sendWebhookWithRetry(event)
+	}
+}
+
+// sendWebhookWithRetry envia webhook com retry automático (3 tentativas: 2s, 5s, 10s)
+func (s *Whatsmiau) sendWebhookWithRetry(event emitter) {
+	maxRetries := 3
+	retryDelays := []time.Duration{
+		2 * time.Second,  // 1ª tentativa após erro
+		5 * time.Second,  // 2ª tentativa após erro
+		10 * time.Second, // 3ª tentativa após erro
+	}
+
+	data, err := json.Marshal(event.data)
+	if err != nil {
+		zap.L().Error("failed to marshal event", zap.Error(err))
+		return
+	}
+
+	var lastErr error
+	var lastStatusCode int
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// Se não é a primeira tentativa, aguarda o delay
+		if attempt > 0 {
+			delay := retryDelays[attempt-1]
+			zap.L().Warn("retrying webhook after delay",
+				zap.Int("attempt", attempt),
+				zap.Duration("delay", delay),
+				zap.String("url", event.url))
+			time.Sleep(delay)
 		}
 
+		// Cria nova requisição para cada tentativa
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, event.url, bytes.NewReader(data))
 		if err != nil {
-			zap.L().Error("failed to create request", zap.Error(err))
-			return
+			lastErr = fmt.Errorf("failed to create request: %w", err)
+			zap.L().Error("webhook request creation failed",
+				zap.Int("attempt", attempt+1),
+				zap.Error(err))
+			continue
 		}
 
 		req.Header.Set("Content-Type", "application/json")
+
+		// Envia requisição
 		resp, err := s.httpClient.Do(req)
 		if err != nil {
-			zap.L().Error("failed to send request", zap.Error(err))
+			lastErr = fmt.Errorf("failed to send request: %w", err)
+			zap.L().Error("webhook send failed",
+				zap.Int("attempt", attempt+1),
+				zap.Error(err),
+				zap.String("url", event.url))
+			continue
+		}
+
+		lastStatusCode = resp.StatusCode
+
+		// Lê resposta
+		respBody, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		// Sucesso!
+		if resp.StatusCode == http.StatusOK {
+			if attempt > 0 {
+				zap.L().Info("webhook succeeded after retry",
+					zap.Int("attempt", attempt+1),
+					zap.String("url", event.url))
+			}
 			return
 		}
-		defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusOK {
-			res, err := io.ReadAll(resp.Body)
-			if err != nil {
-				zap.L().Error("failed to read response body", zap.Error(err))
-			} else {
-				zap.L().Error("error doing request", zap.Any("response", string(res)), zap.String("url", event.url))
-			}
+		// Falhou mas temos a resposta
+		if readErr != nil {
+			lastErr = fmt.Errorf("status %d, failed to read response", resp.StatusCode)
+		} else {
+			lastErr = fmt.Errorf("status %d: %s", resp.StatusCode, string(respBody))
 		}
+
+		zap.L().Warn("webhook failed",
+			zap.Int("attempt", attempt+1),
+			zap.Int("statusCode", resp.StatusCode),
+			zap.String("response", string(respBody)),
+			zap.String("url", event.url))
 	}
+
+	// Todas as tentativas falharam
+	zap.L().Error("webhook failed after all retries",
+		zap.Int("totalAttempts", maxRetries+1),
+		zap.Int("lastStatusCode", lastStatusCode),
+		zap.Error(lastErr),
+		zap.String("url", event.url))
 }
 
 func (s *Whatsmiau) emit(body any, url string) {
 	s.emitter <- emitter{url, body}
+}
+
+// emitConnectionUpdate é uma função helper para enviar webhooks de status de conexão
+func (s *Whatsmiau) emitConnectionUpdate(id string, status string) {
+	instance := s.getInstanceCached(id)
+	if instance == nil {
+		zap.L().Warn("no instance found for connection event", zap.String("instance", id))
+		return
+	}
+
+	// Verifica se o usuário se inscreveu para este evento específico
+	eventMap := make(map[string]bool)
+	for _, event := range instance.Webhook.Events {
+		eventMap[event] = true
+	}
+
+	if !eventMap["CONNECTION_UPDATE"] {
+		// O usuário não quer receber este evento, então não fazemos nada.
+		return
+	}
+
+	// Monta o payload do webhook
+	payload := &WookEvent[WookConnectionUpdateData]{
+		Instance: instance.ID,
+		Data: &WookConnectionUpdateData{
+			Status: status, // "open" ou "close"
+		},
+		DateTime: time.Now(),
+		Event:    WookConnectionUpdate,
+	}
+
+	zap.L().Info("emitting connection update", zap.String("instance", id), zap.String("status", status))
+	s.emit(payload, instance.Webhook.Url)
 }
 
 func (s *Whatsmiau) Handle(id string) whatsmeow.EventHandler {
@@ -156,6 +252,9 @@ func (s *Whatsmiau) Handle(id string) whatsmeow.EventHandler {
 }
 
 func (s *Whatsmiau) handleLoggedOut(id string) {
+	// Emitir webhook de desconexão
+	s.emitConnectionUpdate(id, "close")
+
 	client, ok := s.clients.Load(id)
 	if ok {
 		if err := s.deleteDeviceIfExists(context.Background(), client); err != nil {
@@ -186,6 +285,16 @@ func (s *Whatsmiau) handleMessageEvent(id string, instance *models.Instance, e *
 	}
 
 	messageData.InstanceId = instance.ID
+
+	// Enviar receipt de entrega automaticamente (2 vistos cinza)
+	if e.Info.IsFromMe == false && e.Info.Chat.Server != "broadcast" {
+		go s.sendDeliveryReceipt(id, e)
+	}
+
+	// Marcar como lido após 8 segundos se ReadMessages estiver ativado
+	if instance.ReadMessages && e.Info.IsFromMe == false && e.Info.Chat.Server != "broadcast" {
+		go s.markAsReadAfterDelay(id, e, 8*time.Second)
+	}
 
 	dateTime := time.Unix(int64(messageData.MessageTimestamp), 0)
 	wookMessage := &WookEvent[WookMessageData]{
@@ -940,6 +1049,40 @@ func (s *Whatsmiau) convertBusinessName(id string, evt *events.BusinessName) *Wo
 	}
 }
 
+// sendDeliveryReceipt envia automaticamente o receipt de entrega (2 vistos cinza)
+func (s *Whatsmiau) sendDeliveryReceipt(id string, e *events.Message) {
+	client, ok := s.clients.Load(id)
+	if !ok || client == nil {
+		return
+	}
+
+	err := client.MarkRead(context.TODO(), []types.MessageID{e.Info.ID}, e.Info.Timestamp, e.Info.Chat, e.Info.Sender, types.ReceiptTypeDelivered)
+	if err != nil {
+		zap.L().Debug("failed to send delivery receipt",
+			zap.String("instance", id),
+			zap.String("chat", e.Info.Chat.String()),
+			zap.Error(err))
+	}
+}
+
+// markAsReadAfterDelay marca mensagem como lida após delay (2 vistos azuis)
+func (s *Whatsmiau) markAsReadAfterDelay(id string, e *events.Message, delay time.Duration) {
+	time.Sleep(delay)
+
+	client, ok := s.clients.Load(id)
+	if !ok || client == nil {
+		return
+	}
+
+	err := client.MarkRead(context.TODO(), []types.MessageID{e.Info.ID}, time.Now(), e.Info.Chat, e.Info.Sender)
+	if err != nil {
+		zap.L().Debug("failed to mark message as read",
+			zap.String("instance", id),
+			zap.String("chat", e.Info.Chat.String()),
+			zap.Error(err))
+	}
+}
+
 func (s *Whatsmiau) getPic(id string, jid types.JID) (string, string, error) {
 	client, ok := s.clients.Load(id)
 	if !ok || client == nil {
@@ -972,4 +1115,92 @@ func (s *Whatsmiau) getPic(id string, jid types.JID) (string, string, error) {
 	}
 
 	return pic.URL, base64.StdEncoding.EncodeToString(picRaw), nil
+}
+
+// keepAlwaysOnlineManager gerencia presence de todas as instâncias de forma centralizada
+// Otimizado para alta escala: 15min interval + batching com 20 workers
+func (s *Whatsmiau) keepAlwaysOnlineManager() {
+	ticker := time.NewTicker(15 * time.Minute)
+	defer ticker.Stop()
+
+	zap.L().Info("AlwaysOnline manager started", zap.Int("interval_minutes", 15))
+
+	// Processar imediatamente na inicialização
+	s.processAlwaysOnlineInstances()
+
+	for range ticker.C {
+		s.processAlwaysOnlineInstances()
+	}
+}
+
+// processAlwaysOnlineInstances processa todas as instâncias AlwaysOnline em lotes
+func (s *Whatsmiau) processAlwaysOnlineInstances() {
+	var instanceIDs []string
+
+	// Coletar todos os IDs das instâncias AlwaysOnline
+	s.alwaysOnlineIDs.Range(func(id string, enabled bool) bool {
+		if enabled {
+			instanceIDs = append(instanceIDs, id)
+		}
+		return true
+	})
+
+	if len(instanceIDs) == 0 {
+		return
+	}
+
+	zap.L().Info("Processing AlwaysOnline batch",
+		zap.Int("total_instances", len(instanceIDs)))
+
+	// Semáforo para limitar workers concorrentes (20 workers simultâneos)
+	semaphore := make(chan struct{}, 20)
+	var wg sync.WaitGroup
+
+	for _, id := range instanceIDs {
+		wg.Add(1)
+		go func(instanceID string) {
+			defer wg.Done()
+
+			// Acquire semaphore
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			client, ok := s.clients.Load(instanceID)
+			if !ok || client == nil {
+				// Cliente não existe mais - remover do tracking
+				s.alwaysOnlineIDs.Delete(instanceID)
+				return
+			}
+
+			if !client.IsConnected() || !client.IsLoggedIn() {
+				zap.L().Debug("Skipping AlwaysOnline - client not connected",
+					zap.String("instance", instanceID))
+				return
+			}
+
+			// Enviar presence "available" (online)
+			err := client.SendPresence(context.TODO(), types.PresenceAvailable)
+			if err != nil {
+				zap.L().Debug("Failed to send presence in batch",
+					zap.String("instance", instanceID),
+					zap.Error(err))
+			}
+		}(id)
+	}
+
+	wg.Wait()
+	zap.L().Info("AlwaysOnline batch completed",
+		zap.Int("processed", len(instanceIDs)))
+}
+
+// enableAlwaysOnline ativa AlwaysOnline para uma instância
+func (s *Whatsmiau) enableAlwaysOnline(id string) {
+	s.alwaysOnlineIDs.Store(id, true)
+	zap.L().Info("AlwaysOnline enabled", zap.String("instance", id))
+}
+
+// disableAlwaysOnline desativa AlwaysOnline para uma instância
+func (s *Whatsmiau) disableAlwaysOnline(id string) {
+	s.alwaysOnlineIDs.Delete(id)
+	zap.L().Info("AlwaysOnline disabled", zap.String("instance", id))
 }

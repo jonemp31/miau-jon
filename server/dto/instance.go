@@ -33,7 +33,9 @@ type ListInstancesResponse struct {
 	*models.Instance
 
 	OwnerJID     string `json:"ownerJid,omitempty"`
+	RemoteJid    string `json:"remoteJid,omitempty"` // Alias para compatibilidade
 	InstanceName string `json:"instanceName,omitempty"`
+	Status       string `json:"status,omitempty"`
 }
 
 type ConnectInstanceRequest struct {
@@ -52,14 +54,16 @@ type StatusInstanceRequest struct {
 }
 
 type StatusInstanceResponse struct {
-	ID       string                                        `json:"id,omitempty"`
-	Status   string                                        `json:"state,omitempty"`
-	Instance *StatusInstanceResponseEvolutionCompatibility `json:"instance,omitempty"`
+	ID        string                                        `json:"id,omitempty"`
+	Status    string                                        `json:"state,omitempty"`
+	RemoteJid string                                        `json:"remoteJid,omitempty"`
+	Instance  *StatusInstanceResponseEvolutionCompatibility `json:"instance,omitempty"`
 }
 
 type StatusInstanceResponseEvolutionCompatibility struct {
 	InstanceName string `json:"instanceName,omitempty"`
 	State        string `json:"state,omitempty"`
+	RemoteJid    string `json:"remoteJid,omitempty"`
 }
 
 type DeleteInstanceRequest struct {

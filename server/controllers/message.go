@@ -107,6 +107,7 @@ func (s *Message) SendAudio(ctx echo.Context) error {
 		AudioURL:   request.Audio,
 		InstanceID: request.InstanceID,
 		RemoteJID:  jid,
+		ViewOnce:   request.ViewOnce,
 	}
 
 	if request.Quoted != nil && len(request.Quoted.Key.Id) > 0 && len(request.Quoted.Message.Conversation) > 0 {
@@ -160,6 +161,8 @@ func (s *Message) SendMedia(ctx echo.Context) error {
 	case "image":
 		request.SendDocumentRequest.Mimetype = "image/png"
 		return s.sendImage(ctx, request.SendDocumentRequest)
+	case "video":
+		return s.sendVideo(ctx, request.SendDocumentRequest)
 	}
 
 	return s.sendDocument(ctx, request.SendDocumentRequest)
@@ -242,6 +245,7 @@ func (s *Message) sendImage(ctx echo.Context, request dto.SendDocumentRequest) e
 		Caption:    request.Caption,
 		RemoteJID:  jid,
 		Mimetype:   request.Mimetype,
+		ViewOnce:   request.ViewOnce,
 	}
 
 	c := ctx.Request().Context()
@@ -311,6 +315,135 @@ func (s *Message) SendReaction(ctx echo.Context) error {
 		Status:           "sent",
 		MessageType:      "reactionMessage",
 		MessageTimestamp: int(res.CreatedAt.UnixMicro() / 1000),
+		InstanceId:       request.InstanceID,
+	})
+}
+
+func (s *Message) SendVideo(ctx echo.Context) error {
+	var request dto.SendVideoRequest
+	if err := ctx.Bind(&request); err != nil {
+		return utils.HTTPFail(ctx, http.StatusUnprocessableEntity, err, "failed to bind request body")
+	}
+
+	if err := validator.New().Struct(&request); err != nil {
+		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid request body")
+	}
+
+	return s.sendVideo(ctx, request)
+}
+
+func (s *Message) sendVideo(ctx echo.Context, request interface{}) error {
+	var (
+		jid        *types.JID
+		instanceID string
+		videoURL   string
+		caption    string
+		mimetype   string
+		number     string
+		delay      int
+		viewOnce   bool
+		err        error
+	)
+
+	// Support both SendVideoRequest and SendDocumentRequest (for SendMedia compatibility)
+	switch req := request.(type) {
+	case dto.SendVideoRequest:
+		number = req.Number
+		instanceID = req.InstanceID
+		videoURL = req.Video
+		caption = req.Caption
+		mimetype = req.Mimetype
+		delay = req.Delay
+		viewOnce = req.ViewOnce
+	case dto.SendDocumentRequest:
+		number = req.Number
+		instanceID = req.InstanceID
+		videoURL = req.Media
+		caption = req.Caption
+		mimetype = req.Mimetype
+		delay = req.Delay
+		viewOnce = req.ViewOnce
+	default:
+		return utils.HTTPFail(ctx, http.StatusBadRequest, nil, "invalid request type")
+	}
+
+	jid, err = numberToJid(number)
+	if err != nil {
+		zap.L().Error("error converting number to jid", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid number format")
+	}
+
+	sendData := &whatsmiau.SendVideoRequest{
+		InstanceID: instanceID,
+		MediaURL:   videoURL,
+		Caption:    caption,
+		RemoteJID:  jid,
+		Mimetype:   mimetype,
+		ViewOnce:   viewOnce,
+	}
+
+	c := ctx.Request().Context()
+	time.Sleep(time.Millisecond * time.Duration(delay)) // TODO: create a more robust solution
+
+	res, err := s.whatsmiau.SendVideo(c, sendData)
+	if err != nil {
+		zap.L().Error("Whatsmiau.SendVideo failed", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to send video")
+	}
+
+	return ctx.JSON(http.StatusOK, dto.SendVideoResponse{
+		Key: dto.MessageResponseKey{
+			RemoteJid: number,
+			FromMe:    true,
+			Id:        res.ID,
+		},
+		Status:           "sent",
+		MessageType:      "videoMessage",
+		MessageTimestamp: int(res.CreatedAt.Unix() / 1000),
+		InstanceId:       instanceID,
+	})
+}
+
+// SendMissedCall simula uma notificação de chamada perdida
+// AVISO: Este endpoint é EXPERIMENTAL e pode violar os Termos de Serviço do WhatsApp
+// Use apenas em ambientes de desenvolvimento/teste e por sua conta e risco
+func (s *Message) SendMissedCall(ctx echo.Context) error {
+	var request dto.SendMissedCallRequest
+	if err := ctx.Bind(&request); err != nil {
+		return utils.HTTPFail(ctx, http.StatusUnprocessableEntity, err, "failed to bind request body")
+	}
+
+	if err := validator.New().Struct(&request); err != nil {
+		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid request body")
+	}
+
+	jid, err := numberToJid(request.Number)
+	if err != nil {
+		zap.L().Error("error converting number to jid", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid number format")
+	}
+
+	missedCallData := &whatsmiau.SendMissedCallRequest{
+		InstanceID: request.InstanceID,
+		RemoteJID:  jid,
+		VideoCall:  request.VideoCall,
+	}
+
+	res, err := s.whatsmiau.SendMissedCall(ctx.Request().Context(), missedCallData)
+	if err != nil {
+		zap.L().Error("Whatsmiau.SendMissedCall failed", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to send missed call notification")
+	}
+
+	return ctx.JSON(http.StatusOK, dto.SendMissedCallResponse{
+		Key: dto.MessageResponseKey{
+			RemoteJid: request.Number,
+			FromMe:    true,
+			Id:        res.ID,
+		},
+		Status:           "sent",
+		MessageType:      "missedCallNotification",
+		MessageTimestamp: int(res.CreatedAt.Unix() / 1000),
 		InstanceId:       request.InstanceID,
 	})
 }

@@ -143,3 +143,76 @@ func (s *Chat) NumberExists(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusOK, response)
 }
+
+// DeleteChat deleta um chat (remove da lista de conversas)
+func (s *Chat) DeleteChat(ctx echo.Context) error {
+	var request dto.DeleteChatRequest
+	if err := ctx.Bind(&request); err != nil {
+		return utils.HTTPFail(ctx, http.StatusUnprocessableEntity, err, "failed to bind request body")
+	}
+
+	if err := validator.New().Struct(&request); err != nil {
+		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid request body")
+	}
+
+	jid, err := numberToJid(request.Number)
+	if err != nil {
+		zap.L().Error("error converting number to jid", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid number format")
+	}
+
+	deleteReq := &whatsmiau.DeleteChatRequest{
+		InstanceID: request.InstanceID,
+		RemoteJID:  jid,
+	}
+
+	if err := s.whatsmiau.DeleteChat(ctx.Request().Context(), deleteReq); err != nil {
+		zap.L().Error("Whatsmiau.DeleteChat failed", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to delete chat")
+	}
+
+	return ctx.JSON(http.StatusOK, dto.DeleteChatResponse{
+		Status:  "success",
+		Message: "Chat deleted successfully",
+	})
+}
+
+// ArchiveChat arquiva ou desarquiva um chat
+func (s *Chat) ArchiveChat(ctx echo.Context) error {
+	var request dto.ArchiveChatRequest
+	if err := ctx.Bind(&request); err != nil {
+		return utils.HTTPFail(ctx, http.StatusUnprocessableEntity, err, "failed to bind request body")
+	}
+
+	if err := validator.New().Struct(&request); err != nil {
+		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid request body")
+	}
+
+	jid, err := numberToJid(request.Number)
+	if err != nil {
+		zap.L().Error("error converting number to jid", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid number format")
+	}
+
+	archiveReq := &whatsmiau.ArchiveChatRequest{
+		InstanceID: request.InstanceID,
+		RemoteJID:  jid,
+		Archive:    request.Archive,
+	}
+
+	if err := s.whatsmiau.ArchiveChat(ctx.Request().Context(), archiveReq); err != nil {
+		zap.L().Error("Whatsmiau.ArchiveChat failed", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to archive/unarchive chat")
+	}
+
+	message := "Chat archived successfully"
+	if !request.Archive {
+		message = "Chat unarchived successfully"
+	}
+
+	return ctx.JSON(http.StatusOK, dto.ArchiveChatResponse{
+		Status:  "success",
+		Message: message,
+		Archive: request.Archive,
+	})
+}

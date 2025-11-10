@@ -54,6 +54,134 @@ func (s *Whatsmiau) getCtx(ctx context.Context, url string) (*http.Response, err
 	return res, nil
 }
 
+// processBase64Image processa imagem já codificada em base64 data URI
+// Formato: "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+// Retorna imageData, error
+func processBase64Image(dataURI string) ([]byte, error) {
+	// Extrair a parte base64 do data URI
+	parts := strings.Split(dataURI, ",")
+	if len(parts) != 2 {
+		return nil, errors.New("invalid data URI format")
+	}
+
+	// Decodificar base64
+	imageData, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64: %w", err)
+	}
+
+	return imageData, nil
+}
+
+// processBase64Audio processa áudio já codificado em base64 data URI (OGG Opus)
+// Retorna audioData, waveform, duration, error
+func processBase64Audio(dataURI string) ([]byte, []byte, float64, error) {
+	// Extrair a parte base64 do data URI
+	// Formato: "data:audio/ogg;codecs=opus;base64,T2dnUwACAA..."
+	parts := strings.Split(dataURI, ",")
+	if len(parts) != 2 {
+		return nil, nil, 0, errors.New("invalid data URI format")
+	}
+
+	// Decodificar base64
+	audioData, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("failed to decode base64: %w", err)
+	}
+
+	// Extrair waveform e duração usando ffmpeg
+	waveForm, duration, err := extractAudioMetadata(audioData)
+	if err != nil {
+		// Se falhar, retornar dados básicos sem waveform
+		zap.L().Warn("failed to extract audio metadata, using defaults", zap.Error(err))
+		// Waveform padrão (64 bytes com valores médios)
+		defaultWaveform := make([]byte, 64)
+		for i := range defaultWaveform {
+			defaultWaveform[i] = 128 // valor médio
+		}
+		return audioData, defaultWaveform, 0, nil
+	}
+
+	return audioData, waveForm, duration, nil
+}
+
+// extractAudioMetadata extrai waveform e duração de um áudio OGG
+func extractAudioMetadata(audioData []byte) ([]byte, float64, error) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		return nil, 0, errors.New("ffmpeg not found")
+	}
+
+	// Criar arquivo temporário com o áudio
+	tempIn, err := os.CreateTemp("", "audio-*.ogg")
+	if err != nil {
+		return nil, 0, err
+	}
+	defer os.Remove(tempIn.Name())
+
+	if _, err := tempIn.Write(audioData); err != nil {
+		return nil, 0, err
+	}
+	if err := tempIn.Close(); err != nil {
+		return nil, 0, err
+	}
+
+	// Extrair PCM para análise de waveform
+	out, err := exec.Command(
+		"ffmpeg",
+		"-i", tempIn.Name(),
+		"-ac", "1",
+		"-ar", "48000",
+		"-f", "s16le",
+		"-hide_banner",
+		"-loglevel", "error",
+		"pipe:1",
+	).Output()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed running ffmpeg: %w", err)
+	}
+	if len(out) < 2 {
+		return nil, 0, errors.New("no audio data after decoding")
+	}
+
+	// Calcular duração
+	const sampleRate = 48000.0
+	n := len(out) / 2
+	durationSec := float64(n) / sampleRate
+
+	// Gerar waveform
+	samples := make([]int16, n)
+	for i := 0; i < n; i++ {
+		samples[i] = int16(binary.LittleEndian.Uint16(out[2*i : 2*i+2]))
+	}
+
+	values := rmsByBars(samples, 64)
+	scale := percentile(values, 0.98)
+	if scale <= 0 {
+		for _, v := range values {
+			if v > scale {
+				scale = v
+			}
+		}
+	}
+	if scale == 0 {
+		return make([]byte, len(values)), durationSec, nil
+	}
+
+	buf := make([]byte, len(values))
+	for i, v := range values {
+		x := (v / scale) * 255.0
+		if x < 0 {
+			x = 0
+		}
+		if x > 255 {
+			x = 255
+		}
+		buf[i] = byte(math.Round(x))
+	}
+
+	return buf, durationSec, nil
+}
+
 // Returns audioConverted, waveform, duration and an error
 func convertAudio(data []byte, bars int) ([]byte, []byte, float64, error) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {

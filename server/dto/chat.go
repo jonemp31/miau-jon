@@ -40,3 +40,27 @@ type SendChatPresenceResponse struct {
 type NumberExistsRequest struct {
 	Numbers []string `json:"numbers"     validate:"required,min=1,dive,required"`
 }
+
+// DeleteChatRequest - Requisição para deletar um chat
+type DeleteChatRequest struct {
+	InstanceID string `param:"instance" validate:"required"`
+	Number     string `json:"number" validate:"required"`
+}
+
+type DeleteChatResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+// ArchiveChatRequest - Requisição para arquivar/desarquivar um chat
+type ArchiveChatRequest struct {
+	InstanceID string `param:"instance" validate:"required"`
+	Number     string `json:"number" validate:"required"`
+	Archive    bool   `json:"archive"` // true = arquivar, false = desarquivar
+}
+
+type ArchiveChatResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Archive bool   `json:"archive"`
+}

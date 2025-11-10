@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/types"
 	"golang.org/x/net/context"
 )
@@ -83,4 +84,41 @@ func (s *Whatsmiau) NumberExists(ctx context.Context, data *NumberExistsRequest)
 	}
 
 	return results, nil
+}
+
+// DeleteChatRequest define os parâmetros necessários para deletar um chat
+type DeleteChatRequest struct {
+	InstanceID string     `json:"instance_id"`
+	RemoteJID  *types.JID `json:"remote_jid"`
+}
+
+// DeleteChat deleta um chat (remove completamente da lista de conversas)
+func (s *Whatsmiau) DeleteChat(ctx context.Context, data *DeleteChatRequest) error {
+	client, ok := s.clients.Load(data.InstanceID)
+	if !ok {
+		return whatsmeow.ErrClientIsNil
+	}
+
+	// Usa app state para deletar o chat
+	patch := appstate.BuildDeleteChat(*data.RemoteJID, time.Now(), nil)
+	return client.SendAppState(ctx, patch)
+}
+
+// ArchiveChatRequest define os parâmetros necessários para arquivar/desarquivar um chat
+type ArchiveChatRequest struct {
+	InstanceID string     `json:"instance_id"`
+	RemoteJID  *types.JID `json:"remote_jid"`
+	Archive    bool       `json:"archive"` // true = arquivar, false = desarquivar
+}
+
+// ArchiveChat arquiva ou desarquiva um chat
+func (s *Whatsmiau) ArchiveChat(ctx context.Context, data *ArchiveChatRequest) error {
+	client, ok := s.clients.Load(data.InstanceID)
+	if !ok {
+		return whatsmeow.ErrClientIsNil
+	}
+
+	// Usa app state para arquivar/desarquivar
+	patch := appstate.BuildArchive(*data.RemoteJID, data.Archive, time.Now(), nil)
+	return client.SendAppState(ctx, patch)
 }
