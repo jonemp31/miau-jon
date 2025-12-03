@@ -190,7 +190,7 @@ func (s *Whatsmiau) emitConnectionUpdate(id string, status string) {
 		eventMap[event] = true
 	}
 
-	if !eventMap["CONNECTION_UPDATE"] {
+	if !eventMap["CONNECTION_UPDATE"] && !eventMap["All"] {
 		// O usuário não quer receber este evento, então não fazemos nada.
 		return
 	}
@@ -266,7 +266,7 @@ func (s *Whatsmiau) handleLoggedOut(id string) {
 	s.clients.Delete(id)
 }
 func (s *Whatsmiau) handleMessageEvent(id string, instance *models.Instance, e *events.Message, eventMap map[string]bool) {
-	if !eventMap["MESSAGES_UPSERT"] {
+	if !eventMap["MESSAGES_UPSERT"] && !eventMap["All"] {
 		return
 	}
 
@@ -317,7 +317,7 @@ func (s *Whatsmiau) handleMessageEvent(id string, instance *models.Instance, e *
 }
 
 func (s *Whatsmiau) handleReceiptEvent(id string, instance *models.Instance, e *events.Receipt, eventMap map[string]bool) {
-	if !eventMap["MESSAGES_UPDATE"] {
+	if !eventMap["MESSAGES_UPDATE"] && !eventMap["All"] {
 		return
 	}
 
@@ -343,7 +343,7 @@ func (s *Whatsmiau) handleReceiptEvent(id string, instance *models.Instance, e *
 }
 
 func (s *Whatsmiau) handleBusinessNameEvent(id string, instance *models.Instance, e *events.BusinessName, eventMap map[string]bool) {
-	if !eventMap["CONTACTS_UPSERT"] {
+	if !eventMap["CONTACTS_UPSERT"] && !eventMap["All"] {
 		return
 	}
 
@@ -364,7 +364,7 @@ func (s *Whatsmiau) handleBusinessNameEvent(id string, instance *models.Instance
 }
 
 func (s *Whatsmiau) handleContactEvent(id string, instance *models.Instance, e *events.Contact, eventMap map[string]bool) {
-	if !eventMap["CONTACTS_UPSERT"] {
+	if !eventMap["CONTACTS_UPSERT"] && !eventMap["All"] {
 		return
 	}
 
@@ -389,7 +389,7 @@ func (s *Whatsmiau) handleContactEvent(id string, instance *models.Instance, e *
 }
 
 func (s *Whatsmiau) handlePictureEvent(id string, instance *models.Instance, e *events.Picture, eventMap map[string]bool) {
-	if !eventMap["CONTACTS_UPSERT"] {
+	if !eventMap["CONTACTS_UPSERT"] && !eventMap["All"] {
 		return
 	}
 
@@ -409,7 +409,7 @@ func (s *Whatsmiau) handlePictureEvent(id string, instance *models.Instance, e *
 }
 
 func (s *Whatsmiau) handleHistorySyncEvent(id string, instance *models.Instance, e *events.HistorySync, eventMap map[string]bool) {
-	if !eventMap["CONTACTS_UPSERT"] {
+	if !eventMap["CONTACTS_UPSERT"] && !eventMap["All"] {
 		return
 	}
 
@@ -429,7 +429,7 @@ func (s *Whatsmiau) handleHistorySyncEvent(id string, instance *models.Instance,
 }
 
 func (s *Whatsmiau) handleGroupInfoEvent(id string, instance *models.Instance, e *events.GroupInfo, eventMap map[string]bool) {
-	if !eventMap["CONTACTS_UPSERT"] {
+	if !eventMap["CONTACTS_UPSERT"] && !eventMap["All"] {
 		return
 	}
 
@@ -454,7 +454,7 @@ func (s *Whatsmiau) handleGroupInfoEvent(id string, instance *models.Instance, e
 }
 
 func (s *Whatsmiau) handlePushNameEvent(id string, instance *models.Instance, e *events.PushName, eventMap map[string]bool) {
-	if !eventMap["CONTACTS_UPSERT"] {
+	if !eventMap["CONTACTS_UPSERT"] && !eventMap["All"] {
 		return
 	}
 
