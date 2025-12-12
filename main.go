@@ -8,6 +8,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/verbeux-ai/whatsmiau/env"
 	log_connect "github.com/verbeux-ai/whatsmiau/lib/log-connect"
+	"github.com/verbeux-ai/whatsmiau/lib/supabase"
 	"github.com/verbeux-ai/whatsmiau/lib/whatsmiau"
 	"github.com/verbeux-ai/whatsmiau/server/routes"
 	"github.com/verbeux-ai/whatsmiau/services"
@@ -23,6 +24,14 @@ func main() {
 
 	if err := log_connect.StartLogger(); err != nil {
 		log.Fatalln(err)
+	}
+
+	// Initialize Supabase if configured
+	if env.Env.SupabaseURL != "" && env.Env.SupabaseKey != "" {
+		supabase.Initialize(env.Env.SupabaseURL, env.Env.SupabaseKey)
+		zap.L().Info("Supabase integration enabled")
+	} else {
+		zap.L().Info("Supabase integration disabled (no credentials)")
 	}
 
 	ctx, c := context.WithTimeout(context.Background(), 10*time.Second)

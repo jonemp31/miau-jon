@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/verbeux-ai/whatsmiau/env"
+	"github.com/verbeux-ai/whatsmiau/lib/supabase"
 	"github.com/verbeux-ai/whatsmiau/lib/whatsmiau"
 	"github.com/verbeux-ai/whatsmiau/models"
 	"github.com/verbeux-ai/whatsmiau/repositories/instances"
@@ -79,6 +80,11 @@ func (s *Instance) Create(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to create instance")
 	}
 
+	// Sincronizar com Supabase
+	supabaseData := supabase.ConvertToInstanceData(request.Instance, "disconnected")
+	supabase.SyncInstance(supabaseData)
+	zap.L().Info("instance created and synced to supabase", zap.String("id", request.Instance.ID))
+
 	return ctx.JSON(http.StatusCreated, dto.CreateInstanceResponse{
 		Instance: request.Instance,
 	})
@@ -109,6 +115,12 @@ func (s *Instance) Update(ctx echo.Context) error {
 		zap.L().Error("failed to create instance", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to update instance")
 	}
+
+	// Sincronizar com Supabase (buscar status atual)
+	status, _ := s.whatsmiau.Status(request.ID)
+	supabaseData := supabase.ConvertToInstanceData(instance, string(status))
+	supabase.SyncInstance(supabaseData)
+	zap.L().Info("instance updated and synced to supabase", zap.String("id", request.ID))
 
 	return ctx.JSON(http.StatusCreated, dto.UpdateInstanceResponse{
 		Instance: instance,
@@ -332,6 +344,10 @@ func (s *Instance) Delete(ctx echo.Context) error {
 		zap.L().Error("failed to delete instance", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to delete instance")
 	}
+
+	// Remover do Supabase
+	supabase.DeleteInstance(request.ID)
+	zap.L().Info("instance deleted and removed from supabase", zap.String("id", request.ID))
 
 	return ctx.JSON(http.StatusOK, dto.DeleteInstanceResponse{
 		Message: "instance deleted",

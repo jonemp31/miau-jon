@@ -46,6 +46,10 @@ type E struct {
 	DefaultSkipOwnMessages bool   `env:"DEFAULT_SKIP_OWN_MESSAGES" envDefault:"false"`
 	DefaultWebhookEvents   string `env:"DEFAULT_WEBHOOK_EVENTS" envDefault:"All"`
 	DefaultWebhookByEvents bool   `env:"DEFAULT_WEBHOOK_BY_EVENTS" envDefault:"false"`
+
+	// Supabase Integration
+	SupabaseURL string `env:"SUPABASE_URL" envDefault:""`
+	SupabaseKey string `env:"SUPABASE_KEY" envDefault:""`
 }
 
 var Env E

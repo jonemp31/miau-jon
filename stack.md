@@ -53,6 +53,10 @@ services:
       REDIS_PASSWORD: 31121997digiTal100k
       REDIS_TLS: "false"
       
+      # Supabase Integration (Backup/Analytics)
+      SUPABASE_URL: "https://acersupa.painelopen.win"
+      SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NTA2NDc2MDAsImV4cCI6MTkwODQxNDAw"
+      
       # Default Settings
       DEFAULT_WEBHOOK_URL: https://webhook-dev.zapsafe.work/webhook/tese324234234
       DEFAULT_AUTO_READ: "true"

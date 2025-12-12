@@ -15,6 +15,7 @@ import (
 	"github.com/emersion/go-vcard"
 	"github.com/google/uuid"
 	cache "github.com/patrickmn/go-cache"
+	"github.com/verbeux-ai/whatsmiau/lib/supabase"
 	"github.com/verbeux-ai/whatsmiau/models"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -254,6 +255,14 @@ func (s *Whatsmiau) Handle(id string) whatsmeow.EventHandler {
 func (s *Whatsmiau) handleLoggedOut(id string) {
 	// Emitir webhook de desconexão
 	s.emitConnectionUpdate(id, "close")
+
+	// Sincronizar status desconectado no Supabase
+	instance := s.getInstanceCached(id)
+	if instance != nil {
+		supabaseData := supabase.ConvertToInstanceData(instance, "disconnected")
+		supabase.SyncInstance(supabaseData)
+		zap.L().Info("instance disconnected and synced to supabase", zap.String("id", id))
+	}
 
 	client, ok := s.clients.Load(id)
 	if ok {

@@ -14,6 +14,7 @@ import (
 	"github.com/verbeux-ai/whatsmiau/env"
 	"github.com/verbeux-ai/whatsmiau/interfaces"
 	"github.com/verbeux-ai/whatsmiau/lib/storage/gcs"
+	"github.com/verbeux-ai/whatsmiau/lib/supabase"
 	"github.com/verbeux-ai/whatsmiau/models"
 	"github.com/verbeux-ai/whatsmiau/repositories/instances"
 	"github.com/verbeux-ai/whatsmiau/services"
@@ -324,6 +325,11 @@ func (s *Whatsmiau) observePairing(client *whatsmeow.Client, id string) {
 						if err != nil {
 							zap.L().Error("failed to update instance after pairing", zap.Error(err))
 						}
+
+						// Sincronizar com Supabase (status open + connected_at)
+						supabaseData := supabase.ConvertToInstanceData(instance, "open")
+						supabase.SyncInstance(supabaseData)
+						zap.L().Info("instance connected via pairing and synced to supabase", zap.String("id", id))
 					}
 
 					// Adiciona event handler
@@ -468,6 +474,13 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 					RemoteJID: client.Store.ID.String(),
 				}); err != nil {
 					zap.L().Error("failed to update instance after login", zap.Error(err))
+				}
+
+				// Sincronizar com Supabase (status open + connected_at)
+				if instanceFound := s.getInstance(id); instanceFound != nil {
+					supabaseData := supabase.ConvertToInstanceData(instanceFound, "open")
+					supabase.SyncInstance(supabaseData)
+					zap.L().Info("instance connected via QR and synced to supabase", zap.String("id", id))
 				}
 
 				// Registrar no manager centralizado se AlwaysOnline está ativo
