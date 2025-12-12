@@ -1254,4 +1254,21 @@ func (s *Whatsmiau) syncLeadToSupabase(instanceID string, e *events.Message, mes
 		} else if messageData.Message.ContactMessage != nil {
 			tipoMsg = "contactMessage"
 		}
+	}
 
+	// Criar dados do lead
+	leadData := supabase.LeadData{
+		Numero:          numero,
+		Nome:            nome,
+		Instancia:       instanceID,
+		Fluxo:           "copy1",
+		Etapa:           "optin",
+		Entregar:        "copy1",
+		UltimaMsgLead:   tipoMsg,
+		ConteudoMsg:     conteudoMsg,
+		UltimaInteracao: time.Now(),
+	}
+
+	// Sincronizar com Supabase
+	supabase.SyncLead(leadData)
+}
