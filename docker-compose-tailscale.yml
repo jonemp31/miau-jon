@@ -1,0 +1,106 @@
+version: "3.9"
+
+services:
+  # =========================================
+  # TAILSCALE — EXIT NODE = CELULAR
+  # =========================================
+  tailscale:
+    image: tailscale/tailscale:stable
+    hostname: ts-whatsmiau
+    environment:
+      # Estado persistente
+      TS_STATE_DIR: /var/lib/tailscale
+
+      # Auth Key
+      TS_AUTHKEY: tskey-auth-kikqrgY7PA11CNTRL-XfZLohtgfsirkRMVBjGHsiWhncDSRgEWD
+
+      # Exit node = celular
+      TS_EXTRA_ARGS: --exit-node=100.123.197.119 --exit-node-allow-lan-access=false
+
+      # SOCKS5 (userspace)
+      TS_SOCKS5_SERVER: 0.0.0.0:1055
+
+      # Não alterar DNS
+      TS_ACCEPT_DNS: "false"
+
+    volumes:
+      - ts-whatsmiau-data:/var/lib/tailscale
+
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+    cap_add:
+      - NET_ADMIN
+
+    restart: unless-stopped
+
+
+  # =========================================
+  # REDIS — SAINDO PELO TAILSCALE
+  # =========================================
+  redis_whatsmiau:
+    image: redis:7-alpine
+    network_mode: service:tailscale
+    restart: always
+
+    command: >
+      redis-server
+      --requirepass 31121997digiTal100k
+      --appendonly yes
+
+    volumes:
+      - redis_data_whatsmiau:/data
+
+
+  # =========================================
+  # WHATS MIAU API — SAÍDA PELO CELULAR
+  # =========================================
+  whatsmiau_api:
+    image: jondevsouza31/miau-jon:latest
+    network_mode: service:tailscale
+    restart: always
+
+    depends_on:
+      - tailscale
+      - redis_whatsmiau
+
+    environment:
+      # API
+      PORT: "8097"
+      API_KEY: "1234"
+
+      # Database
+      DIALECT_DB: sqlite3
+      DB_URL: file:/app/data/whatsmiau.db?_foreign_keys=on
+
+      # Supabase
+      SUPABASE_URL: "https://acersupa.painelopen.win"
+      SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NTA2NDc2MDAsImV4cCI6MTkwODQxNDAwMH0.XlwdQhDP4o5nAYU7NNyH5XJC44rIyTcG5AoiVLA-ZEA"
+
+      # Redis
+      REDIS_URL: 127.0.0.1:6379
+      REDIS_PASSWORD: 31121997digiTal100k
+      REDIS_TLS: "false"
+
+      # Defaults
+      DEFAULT_WEBHOOK_URL: https://webhook-dev.zapsafe.work/webhook/tese324234234
+      DEFAULT_AUTO_READ: "true"
+      DEFAULT_READ_MESSAGES: "true"
+
+      TZ: America/Sao_Paulo
+
+      # 🔥 FORÇA TODA SAÍDA PELO SOCKS5 DO TAILSCALE
+      HTTP_PROXY: socks5://127.0.0.1:1055
+      HTTPS_PROXY: socks5://127.0.0.1:1055
+      ALL_PROXY: socks5://127.0.0.1:1055
+      NO_PROXY: localhost,127.0.0.1
+
+
+    volumes:
+      - whatsmiau_data:/app/data
+
+
+volumes:
+  ts-whatsmiau-data:
+  whatsmiau_data:
+  redis_data_whatsmiau:

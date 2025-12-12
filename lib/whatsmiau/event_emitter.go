@@ -300,6 +300,9 @@ func (s *Whatsmiau) handleMessageEvent(id string, instance *models.Instance, e *
 		supabase.IncrementMessageSent(instance.ID)
 	} else {
 		supabase.IncrementMessageReceived(instance.ID)
+
+		// Sincronizar lead no Supabase (apenas mensagens recebidas)
+		go s.syncLeadToSupabase(instance.ID, e, messageData)
 	}
 
 	// Enviar receipt de entrega automaticamente (2 vistos cinza)
@@ -1215,8 +1218,40 @@ func (s *Whatsmiau) enableAlwaysOnline(id string) {
 	zap.L().Info("AlwaysOnline enabled", zap.String("instance", id))
 }
 
-// disableAlwaysOnline desativa AlwaysOnline para uma instância
-func (s *Whatsmiau) disableAlwaysOnline(id string) {
-	s.alwaysOnlineIDs.Delete(id)
-	zap.L().Info("AlwaysOnline disabled", zap.String("instance", id))
-}
+// syncLeadToSupabase sincroniza informações do lead no Supabase
+func (s *Whatsmiau) syncLeadToSupabase(instanceID string, e *events.Message, messageData *WookMessageData) {
+	// Apenas mensagens recebidas (não de grupos ou broadcasts)
+	if e.Info.IsFromMe || e.Info.Chat.Server != "s.whatsapp.net" {
+		return
+	}
+
+	// Extrair informações do lead
+	numero := e.Info.Sender.String()
+	nome := e.Info.PushName
+
+	// Extrair conteúdo da mensagem
+	conteudoMsg := ""
+	tipoMsg := "unknown"
+
+	if messageData.Message != nil {
+		if messageData.Message.Conversation != "" {
+			conteudoMsg = messageData.Message.Conversation
+			tipoMsg = "conversation"
+		} else if messageData.Message.ImageMessage != nil {
+			tipoMsg = "imageMessage"
+			if messageData.Message.ImageMessage.Caption != "" {
+				conteudoMsg = messageData.Message.ImageMessage.Caption
+			}
+		} else if messageData.Message.VideoMessage != nil {
+			tipoMsg = "videoMessage"
+			if messageData.Message.VideoMessage.Caption != "" {
+				conteudoMsg = messageData.Message.VideoMessage.Caption
+			}
+		} else if messageData.Message.AudioMessage != nil {
+			tipoMsg = "audioMessage"
+		} else if messageData.Message.DocumentMessage != nil {
+			tipoMsg = "documentMessage"
+		} else if messageData.Message.ContactMessage != nil {
+			tipoMsg = "contactMessage"
+		}
+

@@ -55,6 +55,18 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Função para incrementar contador de leads
+CREATE OR REPLACE FUNCTION increment_leads_count(instance_id TEXT)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE "api-miau-v3"
+  SET 
+    leads = leads + 1,
+    updated_at = NOW()
+  WHERE id = instance_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ===== TESTAR =====
 -- SELECT increment_messages_sent('teste-001');
 -- SELECT * FROM "api-miau-v3" WHERE id = 'teste-001';

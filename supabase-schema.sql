@@ -51,6 +51,7 @@ CREATE TABLE "api-miau-v3" (
   total_messages_sent INTEGER DEFAULT 0,
   total_messages_received INTEGER DEFAULT 0,
   connection_count INTEGER DEFAULT 0,
+  leads INTEGER DEFAULT 0,
   total_errors INTEGER DEFAULT 0,
   last_error TEXT,
   last_error_at TIMESTAMP WITH TIME ZONE,
