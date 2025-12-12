@@ -329,6 +329,7 @@ func (s *Whatsmiau) observePairing(client *whatsmeow.Client, id string) {
 						// Sincronizar com Supabase (status open + connected_at)
 						supabaseData := supabase.ConvertToInstanceData(instance, "open")
 						supabase.SyncInstance(supabaseData)
+						supabase.IncrementConnectionCount(id)
 						zap.L().Info("instance connected via pairing and synced to supabase", zap.String("id", id))
 					}
 
@@ -480,6 +481,7 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 				if instanceFound := s.getInstance(id); instanceFound != nil {
 					supabaseData := supabase.ConvertToInstanceData(instanceFound, "open")
 					supabase.SyncInstance(supabaseData)
+					supabase.IncrementConnectionCount(id)
 					zap.L().Info("instance connected via QR and synced to supabase", zap.String("id", id))
 				}
 

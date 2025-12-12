@@ -177,17 +177,68 @@ ERROR  failed to sync instance to Supabase after 3 retries  {"id": "teste-001", 
 - `proxy_username`, `proxy_password`
 
 ### **Timestamps**
-- `created_at`, `updated_at`
+- `created_at` (auto: primeira inserção)
+- `updated_at` (auto: trigger atualiza a cada mudança)
 - `connected_at`, `last_seen_at`, `disconnected_at`
 
-### **Analytics** (preparado para futuro)
-- `total_messages_sent`, `total_messages_received`
-- `connection_count`, `total_errors`
-- `last_error`, `last_error_at`
+### **Analytics** ✨ (atualizado automaticamente)
+- `total_messages_sent` ➕ Incrementado a cada mensagem enviada
+- `total_messages_received` ➕ Incrementado a cada mensagem recebida
+- `connection_count` ➕ Incrementado a cada nova conexão (QR ou Pairing)
+- `total_errors` (preparado para futuro)
+- `last_error`, `last_error_at` (preparado para futuro)
 
 ### **Metadados**
 - `api_version` (fixo: "v3")
-- `server_ip`, `user_agent`, `platform`
+- `server_ip`, `user_agent`, `platform` (preparado para futuro)
+
+---
+
+## 📊 Como Funcionam os Analytics
+
+### **Mensagens Enviadas/Recebidas**
+**Quando atualiza:**  
+- A cada mensagem processada pelo event handler
+- Diferencia automaticamente: `IsFromMe = true` → enviada | `false` → recebida
+
+**Implementação:**
+```go
+// event_emitter.go → handleMessageEvent()
+if e.Info.IsFromMe {
+    supabase.IncrementMessageSent(instance.ID)
+} else {
+    supabase.IncrementMessageReceived(instance.ID)
+}
+```
+
+**SQL Function:**
+```sql
+CREATE FUNCTION increment_messages_sent(instance_id TEXT)
+UPDATE "api-miau-v3" SET total_messages_sent = total_messages_sent + 1, updated_at = NOW()
+```
+
+### **Contador de Conexões**
+**Quando atualiza:**  
+- Cada vez que a instância estabelece conexão com WhatsApp
+- Tanto via QR Code quanto via Pairing Code
+
+**Implementação:**
+```go
+// whatsmeow.go → observeConnection() e observePairing()
+supabase.IncrementConnectionCount(id)
+```
+
+**SQL Function:**
+```sql
+CREATE FUNCTION increment_connection_count(instance_id TEXT)
+UPDATE "api-miau-v3" SET connection_count = connection_count + 1, updated_at = NOW()
+```
+
+### **Vantagens dos Analytics**
+✅ **Atômico:** Incrementos SQL diretos (sem race conditions)  
+✅ **Assíncrono:** Não bloqueia processamento de mensagens  
+✅ **Resiliente:** Se falhar, apenas log (não quebra API)  
+✅ **Performático:** Chamadas RPC otimizadas
 
 ---
 

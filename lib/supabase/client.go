@@ -146,3 +146,41 @@ func (c *Client) Query(table, filter string) ([]map[string]interface{}, error) {
 
 	return result, nil
 }
+
+// CallRPC chama uma função RPC (stored procedure) no Supabase
+func (c *Client) CallRPC(functionName string, params map[string]interface{}) error {
+	if !IsEnabled() {
+		zap.L().Debug("Supabase not enabled, skipping RPC call")
+		return nil
+	}
+
+	url := fmt.Sprintf("%s/rest/v1/rpc/%s", c.baseURL, functionName)
+
+	jsonData, err := json.Marshal(params)
+	if err != nil {
+		return fmt.Errorf("failed to marshal params: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("apikey", c.apiKey)
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute RPC request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("supabase RPC error: status=%d body=%s", resp.StatusCode, string(body))
+	}
+
+	zap.L().Debug("Supabase RPC call successful", zap.String("function", functionName))
+	return nil
+}

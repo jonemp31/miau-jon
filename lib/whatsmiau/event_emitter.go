@@ -295,6 +295,13 @@ func (s *Whatsmiau) handleMessageEvent(id string, instance *models.Instance, e *
 
 	messageData.InstanceId = instance.ID
 
+	// Incrementar contador de mensagens no Supabase (se for mensagem enviada)
+	if e.Info.IsFromMe {
+		supabase.IncrementMessageSent(instance.ID)
+	} else {
+		supabase.IncrementMessageReceived(instance.ID)
+	}
+
 	// Enviar receipt de entrega automaticamente (2 vistos cinza)
 	if e.Info.IsFromMe == false && e.Info.Chat.Server != "broadcast" {
 		go s.sendDeliveryReceipt(id, e)

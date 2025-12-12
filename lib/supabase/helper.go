@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/verbeux-ai/whatsmiau/models"
+	"go.uber.org/zap"
 )
 
 // ConvertToInstanceData converte models.Instance para InstanceData do Supabase
@@ -103,4 +104,73 @@ func extractPhoneNumber(remoteJID string) string {
 	}
 
 	return remoteJID
+}
+
+// IncrementMessageSent incrementa contador de mensagens enviadas
+func IncrementMessageSent(instanceID string) {
+	if !IsEnabled() {
+		return
+	}
+
+	go func() {
+		// Chama RPC function do Supabase
+		err := client.CallRPC("increment_messages_sent", map[string]interface{}{
+			"instance_id": instanceID,
+		})
+		if err != nil {
+			zap.L().Debug("failed to increment messages sent", zap.String("id", instanceID), zap.Error(err))
+		}
+	}()
+}
+
+// IncrementMessageReceived incrementa contador de mensagens recebidas
+func IncrementMessageReceived(instanceID string) {
+	if !IsEnabled() {
+		return
+	}
+
+	go func() {
+		// Chama RPC function do Supabase
+		err := client.CallRPC("increment_messages_received", map[string]interface{}{
+			"instance_id": instanceID,
+		})
+		if err != nil {
+			zap.L().Debug("failed to increment messages received", zap.String("id", instanceID), zap.Error(err))
+		}
+	}()
+}
+
+// IncrementConnectionCount incrementa contador de conexões
+func IncrementConnectionCount(instanceID string) {
+	if !IsEnabled() {
+		return
+	}
+
+	go func() {
+		// Chama RPC function do Supabase
+		err := client.CallRPC("increment_connection_count", map[string]interface{}{
+			"instance_id": instanceID,
+		})
+		if err != nil {
+			zap.L().Debug("failed to increment connection count", zap.String("id", instanceID), zap.Error(err))
+		}
+	}()
+}
+
+// RecordError registra erro na instância
+func RecordError(instanceID string, errorMsg string) {
+	if !IsEnabled() {
+		return
+	}
+
+	go func() {
+		// Chama RPC function do Supabase
+		err := client.CallRPC("record_error", map[string]interface{}{
+			"instance_id":   instanceID,
+			"error_message": errorMsg,
+		})
+		if err != nil {
+			zap.L().Debug("failed to record error", zap.String("id", instanceID), zap.Error(err))
+		}
+	}()
 }
