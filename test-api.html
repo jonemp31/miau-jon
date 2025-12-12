@@ -1011,7 +1011,7 @@
                     <div class="endpoint-card">
                         <h3>Status da Instância</h3>
                         <span class="method get">GET</span>
-                        <span>/v1/instance/status/:id</span>
+                        <span>/v1/instance/:id/status</span>
                         
                         <div class="form-group">
                             <label>ID da Instância *</label>
@@ -1454,7 +1454,7 @@
         // Status
         async function getStatus() {
             const id = document.getElementById('status_instanceId').value;
-            const result = await apiRequest('GET', `/v1/instance/status/${id}`);
+            const result = await apiRequest('GET', `/v1/instance/${id}/status`);
             showResponse('status_response', result.data, !result.success);
         }
 
