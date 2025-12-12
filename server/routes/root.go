@@ -8,4 +8,5 @@ import (
 func Root(group *echo.Group) {
 	group.GET("", controllers.Root)
 	group.GET("/health", controllers.Health)
+	group.GET("/system/ip", controllers.GetPublicIP)
 }

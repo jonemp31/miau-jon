@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsMiau API - Painel de Testes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .stats-bar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            border-top: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 15px 25px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            min-width: 120px;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .stat-card .icon {
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .number {
+            font-size: 2em;
+            font-weight: 700;
+            margin: 5px 0;
+        }
+
+        .stat-card .label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card.total {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .config-bar {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            border-bottom: 2px solid #e9ecef;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .config-bar label {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .config-bar input {
+            flex: 1;
+            min-width: 250px;
+            padding: 10px 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .config-bar input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 0;
+            min-height: calc(100vh - 250px);
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            border-right: 2px solid #e9ecef;
+            padding: 20px 0;
+        }
+
+        .sidebar h3 {
+            padding: 0 20px 15px;
+            color: #495057;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .menu-item {
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        .menu-item:hover {
+            background: #e9ecef;
+            border-left-color: #667eea;
+        }
+
+        .menu-item.active {
+            background: white;
+            border-left-color: #667eea;
+            color: #667eea;
+        }
+
+        .content-area {
+            padding: 30px;
+        }
+
+        .endpoint-section {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+
+        .endpoint-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .endpoint-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .endpoint-card h3 {
+            color: #667eea;
+            margin-bottom: 5px;
+            font-size: 1.3em;
+        }
+
+        .endpoint-card .method {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.75em;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .method.post { background: #28a745; color: white; }
+        .method.get { background: #007bff; color: white; }
+        .method.put { background: #ffc107; color: #333; }
+        .method.delete { background: #dc3545; color: white; }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+            font-size: 0.9em;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 5px;
+            color: #6c757d;
+            font-size: 0.85em;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1em;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .response-box {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            display: none;
+        }
+
+        .response-box.show {
+            display: block;
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; max-height: 0; }
+            to { opacity: 1; max-height: 1000px; }
+        }
+
+        .response-box h4 {
+            margin-bottom: 10px;
+            color: #495057;
+        }
+
+        .response-box pre {
+            background: #fff;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.9em;
+            border: 1px solid #dee2e6;
+        }
+
+        .qr-container {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+        }
+
+        .qr-container img {
+            max-width: 400px;
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            cursor: pointer;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-badge.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-badge.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .reset-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+
+        .reset-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 WhatsMiau API</h1>
+            <p>Painel de Testes - Todos os Endpoints Principais</p>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat-card total">
+                <div class="icon">📊</div>
+                <div class="number" id="stat_total">0</div>
+                <div class="label">Total</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">💬</div>
+                <div class="number" id="stat_text">0</div>
+                <div class="label">Textos</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">🖼️</div>
+                <div class="number" id="stat_image">0</div>
+                <div class="label">Imagens</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">🎵</div>
+                <div class="number" id="stat_audio">0</div>
+                <div class="label">Áudios</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">🎬</div>
+                <div class="number" id="stat_video">0</div>
+                <div class="label">Vídeos</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">📄</div>
+                <div class="number" id="stat_document">0</div>
+                <div class="label">Documentos</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">👤</div>
+                <div class="number" id="stat_contact">0</div>
+                <div class="label">Contatos</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">📍</div>
+                <div class="number" id="stat_location">0</div>
+                <div class="label">Localizações</div>
+            </div>
+            <button class="reset-btn" onclick="resetStats()">🔄 Resetar Contadores</button>
+        </div>
+
+        <div class="config-bar">
+            <label>API URL:</label>
+            <input type="text" id="apiUrl" value="http://localhost:8097" placeholder="http://localhost:8097">
+            
+            <label>API Key:</label>
+            <input type="text" id="apiKey" value="31121997digiTal100k" placeholder="Sua API Key">
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <h3>Gerenciamento</h3>
+                <div class="menu-item active" onclick="showSection('instances')">📱 Instâncias</div>
+                <div class="menu-item" onclick="showSection('qrcode')">📸 QR Code</div>
+                <div class="menu-item" onclick="showSection('pairing-code')">📲 Pairing Code</div>
+                
+                <h3>Mensagens</h3>
+                <div class="menu-item" onclick="showSection('send-text')">💬 Enviar Texto</div>
+                <div class="menu-item" onclick="showSection('send-image')">🖼️ Enviar Imagem</div>
+                <div class="menu-item" onclick="showSection('send-audio')">🎵 Enviar Áudio</div>
+                <div class="menu-item" onclick="showSection('send-video')">🎬 Enviar Vídeo</div>
+                <div class="menu-item" onclick="showSection('send-document')">📄 Enviar Documento</div>
+                <div class="menu-item" onclick="showSection('send-contact')">👤 Enviar Contato</div>
+                <div class="menu-item" onclick="showSection('send-location')">📍 Enviar Localização</div>
+                
+                <h3>Ações</h3>
+                <div class="menu-item" onclick="showSection('chat-actions')">💬 Gerenciar Chats</div>
+                <div class="menu-item" onclick="showSection('status')">📊 Status</div>
+            </div>
+
+            <div class="content-area">
+                <!-- INSTÂNCIAS -->
+                <div id="instances" class="endpoint-section active">
+                    <div class="endpoint-card">
+                        <h3>Criar Instância</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/create</span>
+                        
+                        <div class="form-group">
+                            <label>Nome da Instância *</label>
+                            <input type="text" id="create_instanceName" placeholder="minha-instancia">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Webhook URL</label>
+                            <input type="text" id="create_webhook" value="http://192.168.100.149:5680/webhook/miaujon">
+                            <small>URL para receber eventos (mensagens, status, etc). Deixe em branco para desabilitar.</small>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="create_autoRead" checked>
+                            <label>📱 Marcar mensagens como lidas automaticamente (checkmark azul após 8s)</label>
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="createInstance()">Criar Instância</button>
+                        <div id="create_response" class="response-box"></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <h3>Listar Instâncias</h3>
+                        <span class="method get">GET</span>
+                        <span>/v1/instance</span>
+                        
+                        <button class="btn btn-primary" onclick="listInstances()">Listar Todas</button>
+                        <div id="list_response" class="response-box"></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <h3>Deletar Instância</h3>
+                        <span class="method delete">DELETE</span>
+                        <span>/v1/instance/delete/:id</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="delete_instanceId" placeholder="minha-instancia">
+                        </div>
+                        
+                        <button class="btn btn-danger" onclick="deleteInstance()">Deletar Instância</button>
+                        <div id="delete_response" class="response-box"></div>
+                    </div>
+                </div>
+
+                <!-- QR CODE -->
+                <div id="qrcode" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>Visualizar QR Code</h3>
+                        <span class="method get">GET</span>
+                        <span>/v1/instance/connect/:id/image</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="qr_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="showQRCode()">Gerar QR Code</button>
+                        
+                        <div id="qr_loading" style="display:none; margin-top: 20px; text-align: center; padding: 20px;">
+                            <div style="font-size: 3em;">⏳</div>
+                            <p style="color: #667eea; font-weight: 600;">Conectando instância e gerando QR Code...</p>
+                        </div>
+                        
+                        <div id="qr_container" class="qr-container" style="display:none; margin-top: 20px;">
+                            <h4>Escaneie com WhatsApp</h4>
+                            <img id="qr_image" src="" alt="QR Code" style="max-width: 400px; width: 100%;">
+                            <p style="margin-top: 10px; color: #6c757d;">
+                                WhatsApp → Configurações → Aparelhos Conectados → Conectar Aparelho
+                            </p>
+                            <button class="btn btn-primary" onclick="showQRCode()" style="margin-top: 15px;">🔄 Atualizar QR Code</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PAIRING CODE -->
+                <div id="pairing-code" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>🔐 Emparelhar com Código (Pairing Code)</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/:id/pairing</span>
+                        
+                        <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin-bottom: 20px; border-radius: 6px;">
+                            <strong>📱 Como funciona o Pairing Code:</strong>
+                            <p style="margin: 10px 0 0 0; color: #0c5460; font-size: 0.9em;">
+                                1. Informe seu número de telefone (ex: 5521999999999)<br>
+                                2. Um código de 8 caracteres será gerado (ex: RYBG-Q3YQ)<br>
+                                3. No WhatsApp: Configurações → Aparelhos Conectados → Conectar Aparelho<br>
+                                4. Escolha "Conectar com número de telefone"<br>
+                                5. Digite o código gerado<br>
+                                6. Aguarde a conexão (pode levar alguns segundos)
+                            </p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="pair_instanceId" placeholder="teste-pairing" value="teste-pairing">
+                            <small>Nome da instância que será emparelhada</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número de Telefone *</label>
+                            <input type="text" id="pair_phoneNumber" placeholder="5521999999999">
+                            <small>Formato: DDI + DDD + Número (apenas números, sem espaços ou símbolos)<br>
+                                Exemplo: 5521999999999 (Brasil), 1234567890 (EUA)</small>
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="requestPairingCode()">🔑 Gerar Código de Emparelhamento</button>
+                        
+                        <div id="pair_loading" style="display:none; margin-top: 20px; text-align: center; padding: 20px;">
+                            <div style="font-size: 3em;">⏳</div>
+                            <p style="color: #667eea; font-weight: 600;">Gerando código de emparelhamento...</p>
+                            <p style="color: #6c757d; font-size: 0.9em;">Isso pode levar alguns segundos</p>
+                        </div>
+                        
+                        <div id="pair_code_container" style="display:none; margin-top: 20px; padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; text-align: center;">
+                            <h3 style="color: white; margin-bottom: 15px;">🔐 Código de Emparelhamento</h3>
+                            <div style="background: white; padding: 25px; border-radius: 8px; margin: 15px 0;">
+                                <div id="pair_code_display" style="font-size: 3em; font-weight: 700; color: #667eea; letter-spacing: 5px; font-family: 'Courier New', monospace;">
+                                    ----
+                                </div>
+                            </div>
+                            <p style="color: white; margin-top: 15px; font-size: 1.1em;">
+                                ✅ Digite este código no WhatsApp para conectar
+                            </p>
+                            <p style="color: rgba(255,255,255,0.8); font-size: 0.9em; margin-top: 10px;">
+                                O código expira em 2 minutos
+                            </p>
+                            <button class="btn" style="background: white; color: #667eea; margin-top: 20px; font-weight: 700;" onclick="checkPairingStatus()">
+                                🔄 Verificar Status da Conexão
+                            </button>
+                        </div>
+                        
+                        <div id="pair_response" class="response-box"></div>
+                    </div>
+                    
+                    <div class="endpoint-card">
+                        <h3>📊 Verificar Status do Emparelhamento</h3>
+                        <span class="method get">GET</span>
+                        <span>/v1/instance/:id/pairing/status</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="status_pair_instanceId" placeholder="teste-pairing" value="teste-pairing">
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="checkPairingStatus()">🔍 Verificar Status</button>
+                        
+                        <div id="pair_status_container" style="display:none; margin-top: 20px; padding: 20px; border-radius: 8px; text-align: center;">
+                            <!-- Status será preenchido dinamicamente -->
+                        </div>
+                        
+                        <div id="pair_status_response" class="response-box"></div>
+                    </div>
+                </div>
+
+                <!-- ENVIAR TEXTO -->
+                <div id="send-text" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>Enviar Mensagem de Texto</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/:instance/message/text</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="text_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Destinatário *</label>
+                            <input type="text" id="text_phone" placeholder="5511999999999">
+                            <small>Formato: DDI + DDD + Número (ex: 5511999999999)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Mensagem *</label>
+                            <textarea id="text_message" placeholder="Digite sua mensagem aqui..."></textarea>
+                        </div>
+                        
+                        <button class="btn btn-success" onclick="sendText()">Enviar Texto</button>
+                        <div id="text_response" class="response-box"></div>
+                    </div>
+                </div>
+
+                <!-- ENVIAR IMAGEM -->
+                <div id="send-image" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>Enviar Imagem</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/:instance/message/image</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="image_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Destinatário *</label>
+                            <input type="text" id="image_phone" placeholder="5511999999999">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>URL da Imagem *</label>
+                            <input type="text" id="image_url" placeholder="https://exemplo.com/imagem.jpg">
+                            <small>URL pública da imagem (JPG, PNG, GIF)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Legenda (Opcional)</label>
+                            <input type="text" id="image_caption" placeholder="Descrição da imagem">
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="image_viewOnce">
+                            <label>🔒 Enviar como Visualização Única</label>
+                        </div>
+                        
+                        <button class="btn btn-success" onclick="sendImage()">Enviar Imagem</button>
+                        <div id="image_response" class="response-box"></div>
+                    </div>
+                </div>
+
+                <!-- ENVIAR ÁUDIO -->
+                <div id="send-audio" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>Enviar Áudio</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/:instance/message/audio</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="audio_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Destinatário *</label>
+                            <input type="text" id="audio_phone" placeholder="5511999999999">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>URL do Áudio *</label>
+                            <input type="text" id="audio_url" placeholder="https://exemplo.com/audio.mp3">
+                            <small>URL pública do áudio (MP3, OGG, WAV)</small>
+                        </div>
+                        
+                        <div class="grid-2">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="audio_ptt" checked>
+                                <label>Enviar como áudio de voz (PTT)</label>
+                            </div>
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="audio_viewOnce">
+                                <label>🔒 Visualização Única</label>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-success" onclick="sendAudio()">Enviar Áudio</button>
+                        <div id="audio_response" class="response-box"></div>
+                    </div>
+                </div>
+
+                <!-- ENVIAR VÍDEO -->
+                <div id="send-video" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>Enviar Vídeo</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/:instance/message/video</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="video_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Destinatário *</label>
+                            <input type="text" id="video_phone" placeholder="5511999999999">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>URL do Vídeo *</label>
+                            <input type="text" id="video_url" placeholder="https://exemplo.com/video.mp4">
+                            <small>URL pública do vídeo (MP4, AVI, MOV)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Legenda (Opcional)</label>
+                            <input type="text" id="video_caption" placeholder="Descrição do vídeo">
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="video_viewOnce">
+                            <label>🔒 Enviar como Visualização Única</label>
+                        </div>
+                        
+                        <button class="btn btn-success" onclick="sendVideo()">Enviar Vídeo</button>
+                        <div id="video_response" class="response-box"></div>
+                    </div>
+                </div>
+
+                <!-- ENVIAR DOCUMENTO -->
+                <div id="send-document" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>Enviar Documento</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/:instance/message/document</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="doc_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Destinatário *</label>
+                            <input type="text" id="doc_phone" placeholder="5511999999999">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>URL do Documento *</label>
+                            <input type="text" id="doc_url" placeholder="https://exemplo.com/documento.pdf">
+                            <small>URL pública do documento (PDF, DOC, XLS, etc)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Nome do Arquivo</label>
+                            <input type="text" id="doc_filename" placeholder="documento.pdf">
+                        </div>
+                        
+                        <button class="btn btn-success" onclick="sendDocument()">Enviar Documento</button>
+                        <div id="doc_response" class="response-box"></div>
+                    </div>
+                </div>
+
+                <!-- ENVIAR CONTATO -->
+                <div id="send-contact" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>Enviar Contato</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/:id/send/contact</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="contact_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Destinatário *</label>
+                            <input type="text" id="contact_phone" placeholder="5511999999999">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Nome do Contato *</label>
+                            <input type="text" id="contact_name" placeholder="João Silva">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Contato *</label>
+                            <input type="text" id="contact_contactPhone" placeholder="5511888888888">
+                        </div>
+                        
+                        <button class="btn btn-success" onclick="sendContact()">Enviar Contato</button>
+                        <div id="contact_response" class="response-box"></div>
+                    </div>
+                </div>
+
+                <!-- ENVIAR LOCALIZAÇÃO -->
+                <div id="send-location" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>Enviar Localização</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/:id/send/location</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="loc_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Destinatário *</label>
+                            <input type="text" id="loc_phone" placeholder="5511999999999">
+                        </div>
+                        
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Latitude *</label>
+                                <input type="text" id="loc_latitude" placeholder="-23.550520">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Longitude *</label>
+                                <input type="text" id="loc_longitude" placeholder="-46.633308">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Nome do Local (Opcional)</label>
+                            <input type="text" id="loc_name" placeholder="Avenida Paulista">
+                        </div>
+                        
+                        <button class="btn btn-success" onclick="sendLocation()">Enviar Localização</button>
+                        <div id="loc_response" class="response-box"></div>
+                    </div>
+                </div>
+
+                <!-- AÇÕES DE CHAT -->
+                <div id="chat-actions" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>Apagar Chat</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/:instance/chat/deleteChat</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="delchat_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Chat *</label>
+                            <input type="text" id="delchat_phone" placeholder="5511999999999">
+                            <small>Chat que será apagado</small>
+                        </div>
+                        
+                        <button class="btn btn-danger" onclick="deleteChat()">Apagar Chat</button>
+                        <div id="delchat_response" class="response-box"></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <h3>Arquivar Chat</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/:instance/chat/archiveChat</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="archive_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Chat *</label>
+                            <input type="text" id="archive_phone" placeholder="5511999999999">
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="archive_status" checked>
+                            <label>Arquivar (desmarque para desarquivar)</label>
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="archiveChat()">Arquivar/Desarquivar</button>
+                        <div id="archive_response" class="response-box"></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <h3>Enviar Presença (Digitando/Gravando)</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/:instance/chat/presence</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="presence_instanceId" placeholder="teste1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Chat *</label>
+                            <input type="text" id="presence_phone" placeholder="5516991500219">
+                        </div>
+                        
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Ação *</label>
+                                <select id="presence_type">
+                                    <option value="composing">Digitando/Gravando</option>
+                                    <option value="available">Parar (disponível)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Tipo *</label>
+                                <select id="presence_media">
+                                    <option value="text">📝 Digitando texto</option>
+                                    <option value="audio">🎤 Gravando áudio</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Duração (segundos)</label>
+                            <input type="number" id="presence_delay" value="5" placeholder="5">
+                            <small>Tempo que o status ficará ativo (0-300 segundos)</small>
+                        </div>
+                        
+                        <button class="btn btn-success" onclick="sendPresence()">Enviar Presença</button>
+                        <div id="presence_response" class="response-box"></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <h3>⚠️ Enviar Chamada Perdida (EXPERIMENTAL)</h3>
+                        <span class="method post">POST</span>
+                        <span>/v1/instance/:instance/message/missedCall</span>
+                        
+                        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 6px;">
+                            <strong>⚠️ ATENÇÃO - RECURSO EXPERIMENTAL</strong>
+                            <p style="margin: 5px 0 0 0; color: #856404; font-size: 0.9em;">
+                                Este recurso pode violar os Termos de Serviço do WhatsApp.<br>
+                                Use apenas em ambientes de teste e por sua conta e risco.
+                            </p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="missedcall_instanceId" placeholder="teste1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Número do Destinatário *</label>
+                            <input type="text" id="missedcall_phone" placeholder="5516991500219">
+                            <small>Formato: DDI + DDD + Número (ex: 5516991500219)</small>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="missedcall_video">
+                            <label>Chamada de vídeo (desmarque para chamada de voz)</label>
+                        </div>
+                        
+                        <button class="btn btn-danger" onclick="sendMissedCall()">⚠️ Enviar Chamada Perdida</button>
+                        <div id="missedcall_response" class="response-box"></div>
+                    </div>
+                </div>
+
+                <!-- STATUS -->
+                <div id="status" class="endpoint-section">
+                    <div class="endpoint-card">
+                        <h3>Status da Instância</h3>
+                        <span class="method get">GET</span>
+                        <span>/v1/instance/status/:id</span>
+                        
+                        <div class="form-group">
+                            <label>ID da Instância *</label>
+                            <input type="text" id="status_instanceId" placeholder="teste-local">
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="getStatus()">Ver Status</button>
+                        <div id="status_response" class="response-box"></div>
+                    </div>
+
+                    <div class="endpoint-card">
+                        <h3>Health Check da API</h3>
+                        <span class="method get">GET</span>
+                        <span>/v1/health</span>
+                        
+                        <button class="btn btn-primary" onclick="healthCheck()">Verificar Saúde da API</button>
+                        <div id="health_response" class="response-box"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Contadores de Mensagens
+        let messageStats = {
+            text: 0,
+            image: 0,
+            audio: 0,
+            video: 0,
+            document: 0,
+            contact: 0,
+            location: 0
+        };
+
+        // Carregar estatísticas do localStorage
+        function loadStats() {
+            const saved = localStorage.getItem('whatsmiau_stats');
+            if (saved) {
+                messageStats = JSON.parse(saved);
+                updateStatsDisplay();
+            }
+        }
+
+        // Salvar estatísticas no localStorage
+        function saveStats() {
+            localStorage.setItem('whatsmiau_stats', JSON.stringify(messageStats));
+        }
+
+        // Incrementar contador
+        function incrementStat(type) {
+            if (messageStats.hasOwnProperty(type)) {
+                messageStats[type]++;
+                updateStatsDisplay();
+                saveStats();
+            }
+        }
+
+        // Atualizar display dos contadores
+        function updateStatsDisplay() {
+            document.getElementById('stat_text').textContent = messageStats.text;
+            document.getElementById('stat_image').textContent = messageStats.image;
+            document.getElementById('stat_audio').textContent = messageStats.audio;
+            document.getElementById('stat_video').textContent = messageStats.video;
+            document.getElementById('stat_document').textContent = messageStats.document;
+            document.getElementById('stat_contact').textContent = messageStats.contact;
+            document.getElementById('stat_location').textContent = messageStats.location;
+            
+            const total = Object.values(messageStats).reduce((a, b) => a + b, 0);
+            document.getElementById('stat_total').textContent = total;
+        }
+
+        // Resetar contadores
+        function resetStats() {
+            if (confirm('Tem certeza que deseja resetar todos os contadores?')) {
+                messageStats = {
+                    text: 0,
+                    image: 0,
+                    audio: 0,
+                    video: 0,
+                    document: 0,
+                    contact: 0,
+                    location: 0
+                };
+                updateStatsDisplay();
+                saveStats();
+            }
+        }
+
+        // Carregar estatísticas ao iniciar
+        window.addEventListener('DOMContentLoaded', loadStats);
+
+        // Funções de Navegação
+        function showSection(sectionId) {
+            document.querySelectorAll('.endpoint-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Funções Auxiliares
+        function getApiUrl() {
+            return document.getElementById('apiUrl').value;
+        }
+
+        function getApiKey() {
+            return document.getElementById('apiKey').value;
+        }
+
+        function showResponse(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.classList.add('show');
+            
+            const statusClass = isError ? 'error' : 'success';
+            const statusText = isError ? 'Erro' : 'Sucesso';
+            
+            element.innerHTML = `
+                <h4><span class="status-badge ${statusClass}">${statusText}</span></h4>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+        }
+
+        async function apiRequest(method, endpoint, body = null) {
+            const url = getApiUrl() + endpoint;
+            const headers = {
+                'apikey': getApiKey(),
+                'Content-Type': 'application/json'
+            };
+
+            const options = {
+                method,
+                headers
+            };
+
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                return { success: response.ok, data };
+            } catch (error) {
+                return { success: false, data: { error: error.message } };
+            }
+        }
+
+        // Funções de Instâncias
+        async function createInstance() {
+            const webhookUrl = document.getElementById('create_webhook').value;
+            const body = {
+                instanceName: document.getElementById('create_instanceName').value,
+                alwaysOnline: true,
+                readMessages: document.getElementById('create_autoRead').checked
+            };
+            
+            // Adicionar webhook se URL foi fornecida
+            if (webhookUrl && webhookUrl.trim() !== '') {
+                body.webhook = {
+                    url: webhookUrl,
+                    events: ["All"],
+                    byEvents: false
+                };
+            }
+
+            const result = await apiRequest('POST', '/v1/instance/create', body);
+            showResponse('create_response', result.data, !result.success);
+        }
+
+        async function listInstances() {
+            const result = await apiRequest('GET', '/v1/instance');
+            showResponse('list_response', result.data, !result.success);
+        }
+
+        async function deleteInstance() {
+            const id = document.getElementById('delete_instanceId').value;
+            const result = await apiRequest('DELETE', `/v1/instance/delete/${id}`);
+            showResponse('delete_response', result.data, !result.success);
+        }
+
+        // QR Code
+        async function showQRCode() {
+            const id = document.getElementById('qr_instanceId').value;
+            const apiKey = getApiKey();
+            
+            // Mostrar loading
+            document.getElementById('qr_loading').style.display = 'block';
+            document.getElementById('qr_container').style.display = 'none';
+            
+            try {
+                // Primeiro, conectar a instância
+                await apiRequest('POST', `/v1/instance/${id}/connect`, {});
+                
+                // Aguardar um pouco para gerar o QR
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Buscar a imagem do QR Code como blob
+                const timestamp = new Date().getTime();
+                const url = `${getApiUrl()}/v1/instance/connect/${id}/image?apikey=${apiKey}&t=${timestamp}`;
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': apiKey
+                    }
+                });
+                
+                if (!response.ok) throw new Error('Erro ao carregar QR Code');
+                
+                // Converter para blob e criar URL local
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                
+                // Exibir a imagem
+                const imgElement = document.getElementById('qr_image');
+                imgElement.src = imageUrl;
+                
+                // Esconder loading e mostrar QR
+                document.getElementById('qr_loading').style.display = 'none';
+                document.getElementById('qr_container').style.display = 'block';
+                
+            } catch (error) {
+                document.getElementById('qr_loading').style.display = 'none';
+                alert('Erro ao gerar QR Code: ' + error.message);
+            }
+        }
+
+        // Funções de Envio
+        async function sendText() {
+            const id = document.getElementById('text_instanceId').value;
+            const body = {
+                number: document.getElementById('text_phone').value,
+                text: document.getElementById('text_message').value
+            };
+
+            const result = await apiRequest('POST', `/v1/instance/${id}/message/text`, body);
+            showResponse('text_response', result.data, !result.success);
+            if (result.success) incrementStat('text');
+        }
+
+        async function sendImage() {
+            const id = document.getElementById('image_instanceId').value;
+            const body = {
+                number: document.getElementById('image_phone').value,
+                media: document.getElementById('image_url').value,
+                caption: document.getElementById('image_caption').value,
+                viewOnce: document.getElementById('image_viewOnce').checked
+            };
+
+            const result = await apiRequest('POST', `/v1/instance/${id}/message/image`, body);
+            showResponse('image_response', result.data, !result.success);
+            if (result.success) incrementStat('image');
+        }
+
+        async function sendAudio() {
+            const id = document.getElementById('audio_instanceId').value;
+            const body = {
+                number: document.getElementById('audio_phone').value,
+                audio: document.getElementById('audio_url').value,
+                ptt: document.getElementById('audio_ptt').checked,
+                viewOnce: document.getElementById('audio_viewOnce').checked
+            };
+
+            const result = await apiRequest('POST', `/v1/instance/${id}/message/audio`, body);
+            showResponse('audio_response', result.data, !result.success);
+            if (result.success) incrementStat('audio');
+        }
+
+        async function sendVideo() {
+            const id = document.getElementById('video_instanceId').value;
+            const body = {
+                number: document.getElementById('video_phone').value,
+                video: document.getElementById('video_url').value,
+                caption: document.getElementById('video_caption').value,
+                viewOnce: document.getElementById('video_viewOnce').checked
+            };
+
+            const result = await apiRequest('POST', `/v1/instance/${id}/message/video`, body);
+            showResponse('video_response', result.data, !result.success);
+            if (result.success) incrementStat('video');
+        }
+
+        async function sendDocument() {
+            const id = document.getElementById('doc_instanceId').value;
+            const body = {
+                number: document.getElementById('doc_phone').value,
+                media: document.getElementById('doc_url').value,
+                fileName: document.getElementById('doc_filename').value
+            };
+
+            const result = await apiRequest('POST', `/v1/instance/${id}/message/document`, body);
+            showResponse('doc_response', result.data, !result.success);
+            if (result.success) incrementStat('document');
+        }
+
+        async function sendContact() {
+            const id = document.getElementById('contact_instanceId').value;
+            const body = {
+                phone: document.getElementById('contact_phone').value,
+                contact_name: document.getElementById('contact_name').value,
+                contact_phone: document.getElementById('contact_contactPhone').value
+            };
+
+            const result = await apiRequest('POST', `/v1/${id}/send/contact`, body);
+            showResponse('contact_response', result.data, !result.success);
+            if (result.success) incrementStat('contact');
+        }
+
+        async function sendLocation() {
+            const id = document.getElementById('loc_instanceId').value;
+            const body = {
+                phone: document.getElementById('loc_phone').value,
+                latitude: parseFloat(document.getElementById('loc_latitude').value),
+                longitude: parseFloat(document.getElementById('loc_longitude').value),
+                name: document.getElementById('loc_name').value
+            };
+
+            const result = await apiRequest('POST', `/v1/${id}/send/location`, body);
+            showResponse('loc_response', result.data, !result.success);
+            if (result.success) incrementStat('location');
+        }
+
+        // Ações de Chat
+        async function deleteChat() {
+            const id = document.getElementById('delchat_instanceId').value;
+            const body = {
+                phone: document.getElementById('delchat_phone').value
+            };
+
+            const result = await apiRequest('POST', `/v1/instance/${id}/chat/deleteChat`, body);
+            showResponse('delchat_response', result.data, !result.success);
+        }
+
+        async function archiveChat() {
+            const id = document.getElementById('archive_instanceId').value;
+            const body = {
+                phone: document.getElementById('archive_phone').value,
+                archive: document.getElementById('archive_status').checked
+            };
+
+            const result = await apiRequest('POST', `/v1/instance/${id}/chat/archiveChat`, body);
+            showResponse('archive_response', result.data, !result.success);
+        }
+
+        async function sendPresence() {
+            const id = document.getElementById('presence_instanceId').value;
+            const delayValue = parseInt(document.getElementById('presence_delay').value) || 5;
+            const body = {
+                number: document.getElementById('presence_phone').value,
+                presence: document.getElementById('presence_type').value,
+                type: document.getElementById('presence_media').value,
+                delay: delayValue * 1000  // Converter para milissegundos
+            };
+
+            const result = await apiRequest('POST', `/v1/instance/${id}/chat/presence`, body);
+            showResponse('presence_response', result.data, !result.success);
+        }
+
+        async function sendMissedCall() {
+            const id = document.getElementById('missedcall_instanceId').value;
+            const body = {
+                number: document.getElementById('missedcall_phone').value,
+                videoCall: document.getElementById('missedcall_video').checked
+            };
+
+            // Confirmar antes de enviar (recurso experimental)
+            if (!confirm('⚠️ ATENÇÃO: Este é um recurso EXPERIMENTAL que pode violar os Termos de Serviço do WhatsApp.\n\nDeseja continuar?')) {
+                return;
+            }
+
+            const result = await apiRequest('POST', `/v1/instance/${id}/message/missedCall`, body);
+            showResponse('missedcall_response', result.data, !result.success);
+        }
+
+        // Status
+        async function getStatus() {
+            const id = document.getElementById('status_instanceId').value;
+            const result = await apiRequest('GET', `/v1/instance/status/${id}`);
+            showResponse('status_response', result.data, !result.success);
+        }
+
+        async function healthCheck() {
+            const result = await apiRequest('GET', '/v1/health');
+            showResponse('health_response', result.data, !result.success);
+        }
+
+        // Pairing Code
+        async function requestPairingCode() {
+            const id = document.getElementById('pair_instanceId').value;
+            const phoneNumber = document.getElementById('pair_phoneNumber').value;
+            
+            if (!id || !phoneNumber) {
+                alert('Por favor, preencha o ID da instância e o número de telefone');
+                return;
+            }
+            
+            // Validar formato do número (apenas números, 10-15 dígitos)
+            if (!/^\d{10,15}$/.test(phoneNumber)) {
+                alert('Número de telefone inválido. Use apenas números (10-15 dígitos).\nExemplo: 5521999999999');
+                return;
+            }
+            
+            // Mostrar loading
+            document.getElementById('pair_loading').style.display = 'block';
+            document.getElementById('pair_code_container').style.display = 'none';
+            document.getElementById('pair_response').classList.remove('show');
+            
+            const body = {
+                phoneNumber: phoneNumber
+            };
+            
+            try {
+                const result = await apiRequest('POST', `/v1/instance/${id}/pairing`, body);
+                
+                // Esconder loading
+                document.getElementById('pair_loading').style.display = 'none';
+                
+                if (result.success && result.data.code) {
+                    // Exibir o código de emparelhamento
+                    document.getElementById('pair_code_display').textContent = result.data.code;
+                    document.getElementById('pair_code_container').style.display = 'block';
+                    
+                    // Também copiar para área de transferência
+                    try {
+                        await navigator.clipboard.writeText(result.data.code);
+                        console.log('Código copiado para área de transferência');
+                    } catch (err) {
+                        console.log('Não foi possível copiar automaticamente');
+                    }
+                    
+                    // Iniciar polling automático do status
+                    startPairingStatusPolling(id);
+                    
+                } else {
+                    showResponse('pair_response', result.data, true);
+                }
+            } catch (error) {
+                document.getElementById('pair_loading').style.display = 'none';
+                showResponse('pair_response', { error: error.message }, true);
+            }
+        }
+        
+        let pairingPollingInterval = null;
+        
+        function startPairingStatusPolling(instanceId) {
+            // Limpar polling anterior se existir
+            if (pairingPollingInterval) {
+                clearInterval(pairingPollingInterval);
+            }
+            
+            // Verificar status a cada 3 segundos
+            pairingPollingInterval = setInterval(async () => {
+                const result = await apiRequest('GET', `/v1/instance/${instanceId}/pairing/status`);
+                
+                if (result.success && result.data.status) {
+                    const status = result.data.status;
+                    
+                    // Atualizar UI com status
+                    const statusContainer = document.getElementById('pair_status_container');
+                    
+                    if (status === 'connected') {
+                        statusContainer.style.display = 'block';
+                        statusContainer.style.background = '#d4edda';
+                        statusContainer.style.borderLeft = '4px solid #28a745';
+                        statusContainer.innerHTML = `
+                            <div style="font-size: 3em;">✅</div>
+                            <h3 style="color: #155724; margin: 10px 0;">Conectado com Sucesso!</h3>
+                            <p style="color: #155724;">Sua instância está pronta para uso.</p>
+                        `;
+                        
+                        // Parar polling
+                        clearInterval(pairingPollingInterval);
+                        pairingPollingInterval = null;
+                        
+                    } else if (status === 'expired') {
+                        statusContainer.style.display = 'block';
+                        statusContainer.style.background = '#f8d7da';
+                        statusContainer.style.borderLeft = '4px solid #dc3545';
+                        statusContainer.innerHTML = `
+                            <div style="font-size: 3em;">⏰</div>
+                            <h3 style="color: #721c24; margin: 10px 0;">Código Expirado</h3>
+                            <p style="color: #721c24;">O código expirou. Gere um novo código.</p>
+                        `;
+                        
+                        // Parar polling
+                        clearInterval(pairingPollingInterval);
+                        pairingPollingInterval = null;
+                        
+                    } else if (status === 'waiting') {
+                        statusContainer.style.display = 'block';
+                        statusContainer.style.background = '#fff3cd';
+                        statusContainer.style.borderLeft = '4px solid #ffc107';
+                        statusContainer.innerHTML = `
+                            <div style="font-size: 3em;">⏳</div>
+                            <h3 style="color: #856404; margin: 10px 0;">Aguardando Conexão</h3>
+                            <p style="color: #856404;">Digite o código no WhatsApp para conectar.</p>
+                        `;
+                    }
+                }
+            }, 3000);
+            
+            // Limpar após 2 minutos (timeout do código)
+            setTimeout(() => {
+                if (pairingPollingInterval) {
+                    clearInterval(pairingPollingInterval);
+                    pairingPollingInterval = null;
+                }
+            }, 120000);
+        }
+        
+        async function checkPairingStatus() {
+            const id = document.getElementById('status_pair_instanceId').value || document.getElementById('pair_instanceId').value;
+            
+            if (!id) {
+                alert('Por favor, informe o ID da instância');
+                return;
+            }
+            
+            const result = await apiRequest('GET', `/v1/instance/${id}/pairing/status`);
+            
+            // Mostrar resposta JSON
+            showResponse('pair_status_response', result.data, !result.success);
+            
+            // Atualizar UI visual
+            const statusContainer = document.getElementById('pair_status_container');
+            
+            if (result.success && result.data.status) {
+                const status = result.data.status;
+                statusContainer.style.display = 'block';
+                
+                if (status === 'connected') {
+                    statusContainer.style.background = '#d4edda';
+                    statusContainer.style.borderLeft = '4px solid #28a745';
+                    statusContainer.innerHTML = `
+                        <div style="font-size: 3em;">✅</div>
+                        <h3 style="color: #155724; margin: 10px 0;">Conectado</h3>
+                        <p style="color: #155724;">Instância conectada e pronta para uso.</p>
+                    `;
+                } else if (status === 'waiting') {
+                    statusContainer.style.background = '#fff3cd';
+                    statusContainer.style.borderLeft = '4px solid #ffc107';
+                    statusContainer.innerHTML = `
+                        <div style="font-size: 3em;">⏳</div>
+                        <h3 style="color: #856404; margin: 10px 0;">Aguardando</h3>
+                        <p style="color: #856404;">Aguardando conexão do WhatsApp.</p>
+                    `;
+                } else if (status === 'expired') {
+                    statusContainer.style.background = '#f8d7da';
+                    statusContainer.style.borderLeft = '4px solid #dc3545';
+                    statusContainer.innerHTML = `
+                        <div style="font-size: 3em;">⏰</div>
+                        <h3 style="color: #721c24; margin: 10px 0;">Expirado</h3>
+                        <p style="color: #721c24;">Código expirado. Gere um novo.</p>
+                    `;
+                } else if (status === 'not_found') {
+                    statusContainer.style.background = '#d1ecf1';
+                    statusContainer.style.borderLeft = '4px solid #0c5460';
+                    statusContainer.innerHTML = `
+                        <div style="font-size: 3em;">❓</div>
+                        <h3 style="color: #0c5460; margin: 10px 0;">Não Encontrado</h3>
+                        <p style="color: #0c5460;">Nenhum código de emparelhamento foi solicitado para esta instância.</p>
+                    `;
+                }
+            } else {
+                statusContainer.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

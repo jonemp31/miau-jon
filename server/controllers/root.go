@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"time"
 
@@ -33,5 +35,55 @@ func Health(ctx echo.Context) error {
 		"status":  "healthy",
 		"service": "whatsmiau",
 		"time":    time.Now().Unix(),
+	})
+}
+
+// IPInfo response structure
+type IPInfoResponse struct {
+	IP       string `json:"ip"`
+	City     string `json:"city"`
+	Region   string `json:"region"`
+	Country  string `json:"country"`
+	Loc      string `json:"loc"`
+	Org      string `json:"org"`
+	Timezone string `json:"timezone"`
+}
+
+// GetPublicIP fetches the public IP information from external API
+func GetPublicIP(ctx echo.Context) error {
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	// Request to ipinfo.io
+	resp, err := client.Get("https://ipinfo.io/json")
+	if err != nil {
+		return utils.HTTPFail(ctx, http.StatusServiceUnavailable, err, "failed to fetch IP information")
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to read response")
+	}
+
+	// Parse JSON response
+	var ipInfo IPInfoResponse
+	if err := json.Unmarshal(body, &ipInfo); err != nil {
+		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to parse response")
+	}
+
+	// Return formatted response
+	return ctx.JSON(http.StatusOK, map[string]any{
+		"success": true,
+		"message": "Public IP information retrieved successfully",
+		"data": map[string]any{
+			"ip":       ipInfo.IP,
+			"city":     ipInfo.City,
+			"region":   ipInfo.Region,
+			"country":  ipInfo.Country,
+			"location": ipInfo.Loc,
+			"isp":      ipInfo.Org,
+			"timezone": ipInfo.Timezone,
+		},
 	})
 }
