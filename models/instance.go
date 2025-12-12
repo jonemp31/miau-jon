@@ -11,6 +11,7 @@ type Instance struct {
 	SyncFullHistory   bool            `json:"syncFullHistory,omitempty"`
 	SyncRecentHistory bool            `json:"syncRecentHistory,omitempty"`
 	RemoteJID         string          `json:"remoteJID,omitempty"`
+	FingerprintType   string          `json:"fingerprintType,omitempty"` // chrome, firefox, safari, edge (default: chrome)
 	Webhook           InstanceWebhook `json:"webhook,omitempty"`
 	InstanceProxy
 }

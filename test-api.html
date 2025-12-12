@@ -492,6 +492,17 @@
                             <small>URL para receber eventos (mensagens, status, etc). Deixe em branco para desabilitar.</small>
                         </div>
                         
+                        <div class="form-group">
+                            <label>🔐 Device Fingerprint (Navegador)</label>
+                            <select id="create_fingerprint">
+                                <option value="chrome">🟦 Chrome (Windows 10) - Padrão</option>
+                                <option value="firefox">🟧 Firefox (Ubuntu 22.04)</option>
+                                <option value="safari">🟦 Safari (macOS Sonoma 14.5)</option>
+                                <option value="edge">🟩 Edge (Windows 11)</option>
+                            </select>
+                            <small>⚠️ IMPORTANTE: O fingerprint será fixo para esta instância. Escolha cuidadosamente!</small>
+                        </div>
+                        
                         <div class="checkbox-group">
                             <input type="checkbox" id="create_autoRead" checked>
                             <label>📱 Marcar mensagens como lidas automaticamente (checkmark azul após 8s)</label>
@@ -535,14 +546,8 @@
                         <div class="form-group">
                             <label>ID da Instância *</label>
                             <input type="text" id="qr_instanceId" placeholder="teste-local">
+                            <small>ℹ️ O fingerprint usado é o que foi definido na criação da instância</small>
                         </div>
-                        
-                        <div class="form-group">
-                            <label>🔐 Device Fingerprint (Navegador)</label>
-                            <select id="qr_fingerprint">
-                                <option value="chrome">🟦 Chrome (Windows 10) - Padrão</option>
-                                <option value="firefox">🟧 Firefox (Ubuntu 22.04)</option>
-                                <option value="safari">🟦 Safari (macOS Sonoma 14.5)</option>
                                 <option value="edge">🟩 Edge (Windows 11)</option>
                             </select>
                             <small>Escolha qual navegador simular. Ajuda a diversificar as conexões e reduzir padrões detectáveis.</small>
@@ -595,18 +600,8 @@
                             <label>Número de Telefone *</label>
                             <input type="text" id="pair_phoneNumber" placeholder="5521999999999">
                             <small>Formato: DDI + DDD + Número (apenas números, sem espaços ou símbolos)<br>
-                                Exemplo: 5521999999999 (Brasil), 1234567890 (EUA)</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>🔐 Device Fingerprint (Navegador)</label>
-                            <select id="pair_fingerprint">
-                                <option value="chrome">🟦 Chrome (Windows 10) - Padrão</option>
-                                <option value="firefox">🟧 Firefox (Ubuntu 22.04)</option>
-                                <option value="safari">🟦 Safari (macOS Sonoma 14.5)</option>
-                                <option value="edge">🟩 Edge (Windows 11)</option>
-                            </select>
-                            <small>Escolha qual navegador simular. Cada instância pode usar um fingerprint diferente para maior diversidade.</small>
+                                Exemplo: 5521999999999 (Brasil), 1234567890 (EUA)<br>
+                                ℹ️ O fingerprint usado é o que foi definido na criação da instância</small>
                         </div>
                         
                         <button class="btn btn-primary" onclick="requestPairingCode()">🔑 Gerar Código de Emparelhamento</button>
@@ -1252,7 +1247,8 @@
             const body = {
                 instanceName: document.getElementById('create_instanceName').value,
                 alwaysOnline: true,
-                readMessages: document.getElementById('create_autoRead').checked
+                readMessages: document.getElementById('create_autoRead').checked,
+                fingerprintType: document.getElementById('create_fingerprint').value
             };
             
             // Adicionar webhook se URL foi fornecida
@@ -1282,7 +1278,6 @@
         // QR Code
         async function showQRCode() {
             const id = document.getElementById('qr_instanceId').value;
-            const fingerprintType = document.getElementById('qr_fingerprint').value;
             const apiKey = getApiKey();
             
             // Mostrar loading
@@ -1290,10 +1285,8 @@
             document.getElementById('qr_container').style.display = 'none';
             
             try {
-                // Primeiro, conectar a instância com o fingerprint selecionado
-                await apiRequest('POST', `/v1/instance/${id}/connect`, {
-                    fingerprintType: fingerprintType
-                });
+                // Primeiro, conectar a instância (usa o fingerprint salvo automaticamente)
+                await apiRequest('POST', `/v1/instance/${id}/connect`, {});
                 
                 // Aguardar um pouco para gerar o QR
                 await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1492,7 +1485,6 @@
         async function requestPairingCode() {
             const id = document.getElementById('pair_instanceId').value;
             const phoneNumber = document.getElementById('pair_phoneNumber').value;
-            const fingerprintType = document.getElementById('pair_fingerprint').value;
             
             if (!id || !phoneNumber) {
                 alert('Por favor, preencha o ID da instância e o número de telefone');
@@ -1511,8 +1503,7 @@
             document.getElementById('pair_response').classList.remove('show');
             
             const body = {
-                phoneNumber: phoneNumber,
-                fingerprintType: fingerprintType
+                phoneNumber: phoneNumber
             };
             
             try {

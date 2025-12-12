@@ -47,9 +47,10 @@ func (s *Instance) Create(ctx echo.Context) error {
 	request.ID = request.InstanceName
 	if request.Instance == nil {
 		request.Instance = &models.Instance{
-			ID:           request.InstanceName,
-			AlwaysOnline: true, // Padrão: sempre online
-			ReadMessages: true, // Padrão: marcar mensagens como lidas após 8s
+			ID:              request.InstanceName,
+			AlwaysOnline:    true,     // Padrão: sempre online
+			ReadMessages:    true,     // Padrão: marcar mensagens como lidas após 8s
+			FingerprintType: "chrome", // Padrão: Chrome se não especificado
 		}
 	} else {
 		request.Instance.ID = request.InstanceName
@@ -59,6 +60,10 @@ func (s *Instance) Create(ctx echo.Context) error {
 		}
 		if !request.Instance.ReadMessages {
 			request.Instance.ReadMessages = true
+		}
+		// Se fingerprintType não foi especificado, usa Chrome
+		if request.Instance.FingerprintType == "" {
+			request.Instance.FingerprintType = "chrome"
 		}
 	}
 	request.RemoteJID = ""
@@ -190,8 +195,13 @@ func (s *Instance) Connect(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusNotFound, err, "instance not found")
 	}
 
-	// Passar fingerprintType (default: "chrome" se vazio)
-	qrCode, err := s.whatsmiau.Connect(c, request.ID, request.FingerprintType)
+	// Buscar fingerprintType salvo na instância (retrocompatibilidade com instâncias antigas)
+	fingerprintType := result[0].FingerprintType
+	if fingerprintType == "" {
+		fingerprintType = "chrome" // Default para instâncias criadas antes desta feature
+	}
+
+	qrCode, err := s.whatsmiau.Connect(c, request.ID, fingerprintType)
 	if err != nil {
 		zap.L().Error("failed to connect instance", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to connect instance")
@@ -232,8 +242,13 @@ func (s *Instance) ConnectQRBuffer(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusNotFound, err, "instance not found")
 	}
 
-	// Passar fingerprintType (default: "chrome" se vazio)
-	qrCode, err := s.whatsmiau.Connect(c, request.ID, request.FingerprintType)
+	// Buscar fingerprintType salvo na instância (retrocompatibilidade com instâncias antigas)
+	fingerprintType := result[0].FingerprintType
+	if fingerprintType == "" {
+		fingerprintType = "chrome" // Default para instâncias criadas antes desta feature
+	}
+
+	qrCode, err := s.whatsmiau.Connect(c, request.ID, fingerprintType)
 	if err != nil {
 		zap.L().Error("failed to connect instance", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to connect instance")
@@ -387,8 +402,14 @@ func (s *Instance) PairPhone(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusNotFound, nil, "instance not found")
 	}
 
-	// Chama o Core para solicitar o código (com fingerprint)
-	code, err := s.whatsmiau.RequestPairingCode(c, request.ID, request.PhoneNumber, request.FingerprintType)
+	// Buscar fingerprintType salvo na instância (retrocompatibilidade com instâncias antigas)
+	fingerprintType := result[0].FingerprintType
+	if fingerprintType == "" {
+		fingerprintType = "chrome" // Default para instâncias criadas antes desta feature
+	}
+
+	// Chama o Core para solicitar o código (com fingerprint salvo)
+	code, err := s.whatsmiau.RequestPairingCode(c, request.ID, request.PhoneNumber, fingerprintType)
 	if err != nil {
 		zap.L().Error("failed to generate pairing code", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to generate pairing code")

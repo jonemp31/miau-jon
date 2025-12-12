@@ -1,8 +1,8 @@
-# 🔐 Device Fingerprint Rotation
+# 🔐 Device Fingerprint Persistent
 
 ## Visão Geral
 
-A partir da versão v3.1-fingerprint, a Miau-Jon suporta **rotação de fingerprints de dispositivos** para aumentar a diversidade das conexões e reduzir padrões detectáveis pelo WhatsApp.
+A partir da versão **v3.2-fingerprint-persistent**, a Miau-Jon suporta **fingerprints de dispositivos persistentes** para cada instância. O fingerprint é definido **uma única vez na criação da instância** e permanece o mesmo para sempre, simulando um dispositivo físico real.
 
 ## 🎯 O que são Fingerprints?
 
@@ -11,188 +11,354 @@ Fingerprints (impressões digitais) são as características técnicas que ident
 - **Navegador**: Chrome, Firefox, Safari, Edge  
 - **Versão do OS**: 10.0, 11.0, 22.04, etc.
 
+**IMPORTANTE**: O fingerprint é definido **uma única vez na criação da instância** e permanece o mesmo para sempre, simulando um dispositivo físico real.
+
 ## ✅ Navegadores Suportados
 
 ### 1. **Chrome** (Padrão)
 - **OS**: Windows 10
 - **Plataforma**: CHROME
+- **User-Agent**: `WhatsApp/2.2445.9 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36`
 - **Uso**: `fingerprintType: "chrome"` ou omitir o campo
 
 ### 2. **Firefox**
 - **OS**: Ubuntu 22.04
 - **Plataforma**: FIREFOX
+- **User-Agent**: `WhatsApp/2.2445.9 Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0`
 - **Uso**: `fingerprintType: "firefox"`
 
 ### 3. **Safari**
 - **OS**: macOS Sonoma 14.5
 - **Plataforma**: SAFARI
+- **User-Agent**: `WhatsApp/2.2445.9 Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15`
 - **Uso**: `fingerprintType: "safari"`
 
 ### 4. **Edge**
 - **OS**: Windows 11
 - **Plataforma**: EDGE
+- **User-Agent**: `WhatsApp/2.2445.9 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.144`
 - **Uso**: `fingerprintType: "edge"`
 
-## 📡 Como Usar
+## 📌 Como Funciona
 
-### Via API REST
+### Ciclo de Vida do Fingerprint
 
-**Endpoint**: `POST /v1/instance/:id/connect`
+```
+1. CRIAÇÃO DA INSTÂNCIA
+   ↓
+   Escolhe fingerprintType (chrome, firefox, safari, edge)
+   ↓
+   Salva no banco de dados
+   ↓
+2. CONEXÃO (QR Code ou Pairing)
+   ↓
+   Busca fingerprintType do banco automaticamente
+   ↓
+   Aplica ao cliente WhatsApp
+   ↓
+3. TODAS AS CONEXÕES FUTURAS
+   ↓
+   Sempre usa o mesmo fingerprint salvo
+```
 
-**Request Body**:
+## 🚀 Como Usar
+
+### 1️⃣ Criar Instância com Fingerprint (API)
+
+```bash
+POST /v1/instance/create
+Content-Type: application/json
+x-api-key: SUA_API_KEY
+
+{
+    "instanceName": "Instancia Firefox",
+    "webhook": "https://meuwebhook.com/callback",
+    "webhookByEvents": true,
+    "alwaysOnline": true,
+    "readMessages": true,
+    "fingerprintType": "firefox"  # ← DEFINE AQUI (chrome, firefox, safari, edge)
+}
+```
+
+**Resposta**:
 ```json
 {
-  "fingerprintType": "firefox"
+    "id": "1",
+    "instanceName": "Instancia Firefox",
+    "fingerprintType": "firefox",  # ← SALVO NO BANCO
+    "connected": false
 }
 ```
 
-**Exemplos**:
+### 2️⃣ Conectar QR Code (API)
 
 ```bash
-# Conectar com Chrome (padrão)
-curl -X POST http://localhost:8097/v1/instance/minha-instancia/connect \
-  -H "apikey: test123" \
-  -H "Content-Type: application/json"
+POST /v1/instance/1/connect
+Content-Type: application/json
+x-api-key: SUA_API_KEY
 
-# Conectar com Firefox
-curl -X POST http://localhost:8097/v1/instance/minha-instancia/connect \
-  -H "apikey: test123" \
-  -H "Content-Type: application/json" \
-  -d '{"fingerprintType": "firefox"}'
-
-# Conectar com Safari
-curl -X POST http://localhost:8097/v1/instance/outra-instancia/connect \
-  -H "apikey: test123" \
-  -H "Content-Type: application/json" \
-  -d '{"fingerprintType": "safari"}'
-
-# Conectar com Edge
-curl -X POST http://localhost:8097/v1/instance/terceira-instancia/connect \
-  -H "apikey: test123" \
-  -H "Content-Type: application/json" \
-  -d '{"fingerprintType": "edge"}'
+{}  # ← NÃO PRECISA ENVIAR fingerprintType (usa o salvo automaticamente)
 ```
 
-### Via PowerShell
+**O sistema automaticamente**:
+1. Busca `fingerprintType` do banco (`firefox` neste exemplo)
+2. Aplica ao cliente WhatsApp antes de gerar o QR Code
+3. Retorna o QR Code com o fingerprint correto
 
-```powershell
-# Chrome (padrão)
-$headers = @{
-    'apikey' = 'test123'
-    'Content-Type' = 'application/json'
+### 3️⃣ Conectar Pairing Code (API)
+
+```bash
+POST /v1/instance/1/pair
+Content-Type: application/json
+x-api-key: SUA_API_KEY
+
+{
+    "phoneNumber": "5521999999999"
+    # ← NÃO PRECISA ENVIAR fingerprintType (usa o salvo automaticamente)
 }
-Invoke-RestMethod -Uri 'http://localhost:8097/v1/instance/minha-instancia/connect' `
-    -Method POST -Headers $headers
-
-# Firefox
-$body = '{"fingerprintType": "firefox"}'
-Invoke-RestMethod -Uri 'http://localhost:8097/v1/instance/minha-instancia/connect' `
-    -Method POST -Headers $headers -Body $body
-
-# Safari
-$body = '{"fingerprintType": "safari"}'
-Invoke-RestMethod -Uri 'http://localhost:8097/v1/instance/outra-instancia/connect' `
-    -Method POST -Headers $headers -Body $body
 ```
 
-## 🔄 Estratégias de Rotação
+**O sistema automaticamente**:
+1. Busca `fingerprintType` do banco (`firefox` neste exemplo)
+2. Aplica ao cliente WhatsApp antes de solicitar o código
+3. Retorna o código de pareamento com o fingerprint correto
 
-### 1. **Rotação por Instância**
-Cada instância usa um fingerprint diferente:
+### 4️⃣ Usar Interface Web (test-api.html)
+
+1. Acesse `http://localhost:3000/test-api.html`
+2. Na seção **"Create Instance"**:
+   - Preencha o nome da instância
+   - **Selecione o Fingerprint** no dropdown (Chrome, Firefox, Safari, Edge)
+   - Configure webhook e outras opções
+   - Clique em "Create Instance"
+3. Na seção **"QR Code"**:
+   - Cole o ID da instância
+   - Clique em "Show QR Code"
+   - ⚠️ O fingerprint usado será o que você escolheu na criação
+4. Na seção **"Pairing Code"**:
+   - Cole o ID da instância e número de telefone
+   - Clique em "Request Pairing Code"
+   - ⚠️ O fingerprint usado será o que você escolheu na criação
+
+## 🔄 Comparação v3.1 vs v3.2
+
+| Aspecto | v3.1 (Incorreto) | v3.2 (Correto) |
+|---------|------------------|----------------|
+| **Quando escolher** | No QR Code/Pairing | ✅ **Na criação** |
+| **Persistência** | ❌ Não persistia | ✅ **Salvo no DB** |
+| **Consistência** | ❌ Podia mudar | ✅ **Permanente** |
+| **Realismo** | ❌ Suspeito | ✅ **Natural** |
+| **Exemplo** | Hoje Chrome, amanhã Firefox | Sempre Firefox |
+
+### Por que v3.1 estava incorreto?
+
 ```
-instancia-1 → Chrome (Windows 10)
-instancia-2 → Firefox (Ubuntu 22.04)
-instancia-3 → Safari (macOS 14.5)
-instancia-4 → Edge (Windows 11)
-instancia-5 → Chrome (Windows 10)  # Ciclo reinicia
+❌ v3.1: Instância podia conectar como Chrome hoje e Firefox amanhã
+→ WhatsApp pensa: "Por que este dispositivo mudou de sistema operacional?"
+→ Padrão suspeito e inconsistente
+
+✅ v3.2: Instância sempre conecta com o mesmo fingerprint
+→ WhatsApp pensa: "Este dispositivo é sempre o mesmo"
+→ Comportamento natural e realista
 ```
 
-### 2. **Rotação Aleatória**
-Escolha aleatoriamente para cada nova conexão:
-```javascript
-const fingerprints = ['chrome', 'firefox', 'safari', 'edge'];
-const random = fingerprints[Math.floor(Math.random() * fingerprints.length)];
+## 🛡️ Retrocompatibilidade
+
+- **Instâncias criadas antes de v3.2** (sem `fingerprintType` no banco):
+  - Usarão automaticamente **Chrome (Windows 10)** por padrão
+  - Nenhuma ação necessária
+  
+- **Instâncias criadas após v3.2**:
+  - Usarão o fingerprint escolhido na criação
+  - Se não especificado, usarão Chrome por padrão
+
+## ✨ Benefícios
+
+- ✅ **Consistência**: Uma instância = um dispositivo único para sempre
+- ✅ **Realismo**: Simula dispositivos físicos reais que não mudam de identidade
+- ✅ **Segurança**: Evita padrões suspeitos de mudança de dispositivo
+- ✅ **Diversificação**: Cada instância pode ter um fingerprint diferente
+- ✅ **Simplicidade**: Escolhe uma vez, usa para sempre
+- ✅ **Auditoria**: Fácil rastrear qual dispositivo cada instância representa
+
+## 🔧 Implementação Técnica
+
+### Model (models/instance.go)
+
+```go
+type Instance struct {
+    ID              string  `json:"id"`
+    InstanceName    string  `json:"instanceName"`
+    FingerprintType string  `json:"fingerprintType,omitempty"` // ← NOVO CAMPO
+    // ... outros campos
+}
 ```
 
-### 3. **Rotação por Horário**
-Diferentes fingerprints em diferentes períodos:
-```
-00:00-06:00 → Safari
-06:00-12:00 → Chrome
-12:00-18:00 → Firefox
-18:00-24:00 → Edge
+### Controller - Create (controllers/instance.go)
+
+```go
+func (s *InstanceController) Create(c echo.Context) error {
+    // ... código anterior
+    
+    instance := models.Instance{
+        ID:              id,
+        InstanceName:    instanceName,
+        FingerprintType: req.FingerprintType, // ← LÊ DO REQUEST
+        // ... outros campos
+    }
+    
+    // Se não especificado, usa Chrome
+    if instance.FingerprintType == "" {
+        instance.FingerprintType = "chrome"
+    }
+    
+    // Salva no banco
+    err = s.repo.Save(&instance)
+}
 ```
 
-## ⚠️ Limitações Importantes
+### Controller - Connect (controllers/instance.go)
 
-### **Race Condition em Alta Concorrência**
-O `DeviceProps` é uma variável **global** da biblioteca whatsmeow. Se duas instâncias conectarem simultaneamente:
-```
-Request A (firefox) → Define DeviceProps = Firefox
-Request B (safari)  → Define DeviceProps = Safari  
-Request A conecta  → Pode pegar Safari em vez de Firefox ❌
+```go
+func (s *InstanceController) Connect(c echo.Context) error {
+    id := c.Param("id")
+    
+    // Busca instância do banco
+    result, err := s.repo.Find(id)
+    
+    // Pega fingerprint salvo
+    fingerprintType := result[0].FingerprintType
+    if fingerprintType == "" {
+        fingerprintType = "chrome" // retrocompatibilidade
+    }
+    
+    // Conecta com o fingerprint correto
+    _, err = s.whatsmiau.Connect(id, fingerprintType) // ← USA O SALVO
+}
 ```
 
-**Solução**: Evite conectar múltiplas instâncias no mesmo segundo. Use delays:
+### Core - Apply Fingerprint (lib/whatsmiau/whatsmeow.go)
+
+```go
+func applyFingerprintProfile(fingerprintType string) {
+    switch fingerprintType {
+    case "chrome":
+        store.DeviceProps.Os = proto.String("Windows 10")
+        store.DeviceProps.PlatformType = waProto.DeviceProps_CHROME.Enum()
+        store.DeviceProps.RequireFullSync = proto.Bool(false)
+    case "firefox":
+        store.DeviceProps.Os = proto.String("Ubuntu 22.04")
+        store.DeviceProps.PlatformType = waProto.DeviceProps_FIREFOX.Enum()
+        store.DeviceProps.RequireFullSync = proto.Bool(false)
+    case "safari":
+        store.DeviceProps.Os = proto.String("macOS 14.5")
+        store.DeviceProps.PlatformType = waProto.DeviceProps_SAFARI.Enum()
+        store.DeviceProps.RequireFullSync = proto.Bool(false)
+    case "edge":
+        store.DeviceProps.Os = proto.String("Windows 11")
+        store.DeviceProps.PlatformType = waProto.DeviceProps_EDGE.Enum()
+        store.DeviceProps.RequireFullSync = proto.Bool(false)
+    default:
+        // Chrome por padrão
+        store.DeviceProps.Os = proto.String("Windows 10")
+        store.DeviceProps.PlatformType = waProto.DeviceProps_CHROME.Enum()
+        store.DeviceProps.RequireFullSync = proto.Bool(false)
+    }
+}
+```
+
+## 📊 Exemplos de Uso
+
+### Cenário 1: Criar 10 instâncias com fingerprints diferentes
+
 ```bash
-# Correto
-curl -X POST .../instancia-1/connect -d '{"fingerprintType":"chrome"}'
-sleep 2
-curl -X POST .../instancia-2/connect -d '{"fingerprintType":"firefox"}'
+# Instância 1 - Chrome
+curl -X POST http://localhost:3000/v1/instance/create \
+  -H "x-api-key: SUA_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"instanceName": "Cliente 1", "fingerprintType": "chrome"}'
+
+# Instância 2 - Firefox
+curl -X POST http://localhost:3000/v1/instance/create \
+  -H "x-api-key: SUA_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"instanceName": "Cliente 2", "fingerprintType": "firefox"}'
+
+# Instância 3 - Safari
+curl -X POST http://localhost:3000/v1/instance/create \
+  -H "x-api-key: SUA_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"instanceName": "Cliente 3", "fingerprintType": "safari"}'
+
+# Instância 4 - Edge
+curl -X POST http://localhost:3000/v1/instance/create \
+  -H "x-api-key: SUA_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"instanceName": "Cliente 4", "fingerprintType": "edge"}'
 ```
 
-### **Android/iOS não suportados**
-Apenas navegadores web são seguros. Simular Android/iOS como companion é detectado pelo WhatsApp e pode causar ban.
+### Cenário 2: Conectar instância (usa fingerprint salvo)
 
-## 🎯 Melhores Práticas
+```bash
+# Conectar instância 2 (Firefox) - NÃO PRECISA ENVIAR FINGERPRINT
+curl -X POST http://localhost:3000/v1/instance/2/connect \
+  -H "x-api-key: SUA_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
 
-✅ **Faça**: 
-- Rotacionar entre os 4 navegadores disponíveis
-- Usar delays de 1-2 segundos entre conexões
-- Combinar com IPs/proxies diferentes
-- Documentar qual fingerprint cada instância usa
-
-❌ **Não Faça**:
-- Conectar 10+ instâncias simultaneamente
-- Mudar fingerprint de uma instância já conectada (desconecte antes)
-- Usar sempre o mesmo fingerprint para todas as instâncias
-- Tentar simular Android/iOS (não suportado)
-
-## 📊 Monitoramento
-
-Os logs mostrarão qual fingerprint foi aplicado:
-```
-INFO: applied Chrome fingerprint    os="Windows 10"
-INFO: applied Firefox fingerprint   os="Ubuntu 22.04"
-INFO: applied Safari fingerprint    os="macOS Sonoma 14.5"
-INFO: applied Edge fingerprint      os="Windows 11"
+# Sistema automaticamente:
+# 1. Busca fingerprint do banco → "firefox"
+# 2. Aplica Firefox ao cliente
+# 3. Gera QR Code com Firefox
 ```
 
-## 🔧 Troubleshooting
+### Cenário 3: Verificar fingerprint de uma instância
 
-**Problema**: Instância não conecta após mudar fingerprint
-- **Solução**: Desconecte completamente antes de reconectar com novo fingerprint
+```bash
+# Buscar detalhes da instância
+curl -X GET http://localhost:3000/v1/instance/list \
+  -H "x-api-key: SUA_KEY"
 
-**Problema**: Todas as instâncias aparecem com o mesmo fingerprint
-- **Solução**: Adicione delay de 2s entre as conexões
+# Resposta:
+{
+  "instances": [
+    {
+      "id": "1",
+      "instanceName": "Cliente 1",
+      "fingerprintType": "chrome",  # ← AQUI ESTÁ O FINGERPRINT
+      "connected": true
+    },
+    {
+      "id": "2",
+      "instanceName": "Cliente 2",
+      "fingerprintType": "firefox",  # ← ESTE É FIREFOX
+      "connected": false
+    }
+  ]
+}
+```
 
-**Problema**: WhatsApp detecta/bane a conta
-- **Solução**: Use apenas os 4 navegadores suportados (Chrome/Firefox/Safari/Edge)
+## 🐛 Troubleshooting
 
-## 🚀 Upgrade da v3.0 para v3.1
+### Problema: Instância antiga não tem fingerprint
 
-Nenhuma alteração no banco de dados é necessária. A feature é 100% retrocompatível:
-- Se `fingerprintType` não for enviado → usa Chrome (comportamento anterior)
-- Se `fingerprintType` for enviado → aplica o fingerprint escolhido
+**Solução**: Instâncias criadas antes de v3.2 usarão automaticamente Chrome por padrão. Se quiser mudar, recrie a instância.
 
-## 📝 Changelog
+### Problema: Quero mudar o fingerprint de uma instância existente
 
-**v3.1-fingerprint** (12/12/2024)
-- ✅ Suporte a 4 fingerprints web (Chrome, Firefox, Safari, Edge)
-- ✅ Rotação automática de OS version (Windows 10/11, Ubuntu 22.04, macOS 14.5)
-- ✅ API retrocompatível (Chrome default se omitido)
-- ✅ Logs detalhados de fingerprint aplicado
+**Resposta**: Não é possível (por design). O fingerprint é permanente para simular um dispositivo físico real. Se precisar de outro fingerprint, crie uma nova instância.
+
+### Problema: Erro "invalid fingerprint type"
+
+**Solução**: Use apenas: `chrome`, `firefox`, `safari` ou `edge` (minúsculas).
+
+## 📚 Referências
+
+- **WhatsApp Business API**: Device Props
+- **Biblioteca**: go.mau.fi/whatsmeow
+- **Versão**: v3.2-fingerprint-persistent
+- **Última Atualização**: Dezembro 2024
 
 ---
 
-**Dúvidas?** Entre em contato via Issues no GitHub.
+💡 **Dica**: Distribua seus clientes entre os 4 fingerprints disponíveis para máxima diversificação!
