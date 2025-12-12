@@ -20,6 +20,7 @@ import (
 	"github.com/verbeux-ai/whatsmiau/services"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
@@ -166,7 +167,46 @@ func LoadMiau(ctx context.Context, container *sqlstore.Container) {
 
 }
 
-func (s *Whatsmiau) Connect(ctx context.Context, id string) (string, error) {
+// applyFingerprintProfile configura o DeviceProps global antes de criar o cliente
+// Rotaciona entre Chrome/Firefox/Safari/Edge para aumentar diversidade
+func (s *Whatsmiau) applyFingerprintProfile(fingerprintType string) {
+	// Normaliza para lowercase
+	fingerprintType = strings.ToLower(strings.TrimSpace(fingerprintType))
+
+	switch fingerprintType {
+	case "firefox":
+		store.DeviceProps.Os = proto.String("Ubuntu")
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_FIREFOX.Enum()
+		store.SetOSInfo("Ubuntu", [3]uint32{22, 04, 0})
+		zap.L().Info("applied Firefox fingerprint", zap.String("os", "Ubuntu 22.04"))
+
+	case "safari":
+		store.DeviceProps.Os = proto.String("Mac OS")
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_SAFARI.Enum()
+		store.SetOSInfo("Mac OS", [3]uint32{14, 5, 0})
+		zap.L().Info("applied Safari fingerprint", zap.String("os", "macOS Sonoma 14.5"))
+
+	case "edge":
+		store.DeviceProps.Os = proto.String("Windows")
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_EDGE.Enum()
+		store.SetOSInfo("Windows", [3]uint32{11, 0, 0})
+		zap.L().Info("applied Edge fingerprint", zap.String("os", "Windows 11"))
+
+	default: // "chrome" ou vazio
+		store.DeviceProps.Os = proto.String("Windows")
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
+		store.SetOSInfo("Windows", [3]uint32{10, 0, 0})
+		zap.L().Info("applied Chrome fingerprint", zap.String("os", "Windows 10"))
+	}
+
+	// Configurações comuns a todos os perfis
+	store.DeviceProps.RequireFullSync = proto.Bool(false)
+}
+
+func (s *Whatsmiau) Connect(ctx context.Context, id string, fingerprintType string) (string, error) {
+	// Aplica o fingerprint ANTES de gerar o cliente
+	s.applyFingerprintProfile(fingerprintType)
+
 	client, err := s.generateClient(ctx, id)
 	if err != nil {
 		return "", err
@@ -188,12 +228,15 @@ func (s *Whatsmiau) Connect(ctx context.Context, id string) (string, error) {
 }
 
 // RequestPairingCode solicita um código de pareamento via número de telefone
-func (s *Whatsmiau) RequestPairingCode(ctx context.Context, id string, phoneNumber string) (string, error) {
+func (s *Whatsmiau) RequestPairingCode(ctx context.Context, id string, phoneNumber string, fingerprintType string) (string, error) {
 	// 1. Sanitização agressiva do número (remove tudo que não for dígito)
 	re := regexp.MustCompile(`\D`)
 	cleanPhone := re.ReplaceAllString(phoneNumber, "")
 
 	zap.L().Info("requesting pairing code", zap.String("instance", id), zap.String("phone", cleanPhone))
+
+	// Aplica o fingerprint ANTES de gerar o cliente
+	s.applyFingerprintProfile(fingerprintType)
 
 	client, err := s.generateClient(ctx, id)
 	if err != nil {
@@ -216,26 +259,7 @@ func (s *Whatsmiau) RequestPairingCode(ctx context.Context, id string, phoneNumb
 		zap.L().Info("disconnected previous connection", zap.String("instance", id))
 	}
 
-	// 4. CONFIGURAÇÃO CRÍTICA: Definir propriedades do dispositivo ANTES de conectar
-	// O erro 400 acontece porque o WhatsApp não reconhece a "persona" do cliente.
-	// Vamos forçar para parecer um Chrome no Windows.
-
-	// Configurar props no Device (antes de conectar)
-	if client.Store.ID != nil {
-		props := &waCompanionReg.DeviceProps{
-			Os:              proto.String("Windows"),
-			PlatformType:    waCompanionReg.DeviceProps_CHROME.Enum(),
-			RequireFullSync: proto.Bool(false),
-		}
-
-		// Tenta setar no device - isso depende da versão do whatsmeow
-		// Em algumas versões, SetProps existe, em outras não
-		_ = props // usar a variável
-	}
-
-	zap.L().Info("device props configured", zap.String("instance", id), zap.String("os", "Windows"), zap.String("platform", "Chrome"))
-
-	// 5. Conecta ao Socket
+	// 4. Conecta ao Socket (fingerprint já foi aplicado antes de generateClient)
 	if err := client.Connect(); err != nil {
 		zap.L().Error("failed to connect for pairing code", zap.Error(err), zap.String("instance", id))
 		return "", err

@@ -39,7 +39,8 @@ type ListInstancesResponse struct {
 }
 
 type ConnectInstanceRequest struct {
-	ID string `param:"id" validate:"required"`
+	ID              string `param:"id" validate:"required"`
+	FingerprintType string `json:"fingerprintType,omitempty"` // "chrome", "firefox", "safari", "edge" (default: chrome)
 }
 
 type ConnectInstanceResponse struct {
@@ -84,8 +85,9 @@ type LogoutInstanceResponse struct {
 
 // PairInstanceRequest - Requisição para solicitar código de pareamento
 type PairInstanceRequest struct {
-	ID          string `param:"id" validate:"required"`
-	PhoneNumber string `json:"phoneNumber" validate:"required,min=10,max=15"` // Ex: 5511999999999
+	ID              string `param:"id" validate:"required"`
+	PhoneNumber     string `json:"phoneNumber" validate:"required,min=10,max=15"` // Ex: 5511999999999
+	FingerprintType string `json:"fingerprintType,omitempty"`                     // "chrome", "firefox", "safari", "edge" (default: chrome)
 }
 
 // PairInstanceResponse - Resposta com código de pareamento

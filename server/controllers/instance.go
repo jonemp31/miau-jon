@@ -190,7 +190,8 @@ func (s *Instance) Connect(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusNotFound, err, "instance not found")
 	}
 
-	qrCode, err := s.whatsmiau.Connect(c, request.ID)
+	// Passar fingerprintType (default: "chrome" se vazio)
+	qrCode, err := s.whatsmiau.Connect(c, request.ID, request.FingerprintType)
 	if err != nil {
 		zap.L().Error("failed to connect instance", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to connect instance")
@@ -231,7 +232,8 @@ func (s *Instance) ConnectQRBuffer(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusNotFound, err, "instance not found")
 	}
 
-	qrCode, err := s.whatsmiau.Connect(c, request.ID)
+	// Passar fingerprintType (default: "chrome" se vazio)
+	qrCode, err := s.whatsmiau.Connect(c, request.ID, request.FingerprintType)
 	if err != nil {
 		zap.L().Error("failed to connect instance", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to connect instance")
@@ -385,8 +387,8 @@ func (s *Instance) PairPhone(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusNotFound, nil, "instance not found")
 	}
 
-	// Chama o Core para solicitar o código
-	code, err := s.whatsmiau.RequestPairingCode(c, request.ID, request.PhoneNumber)
+	// Chama o Core para solicitar o código (com fingerprint)
+	code, err := s.whatsmiau.RequestPairingCode(c, request.ID, request.PhoneNumber, request.FingerprintType)
 	if err != nil {
 		zap.L().Error("failed to generate pairing code", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to generate pairing code")
