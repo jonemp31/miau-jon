@@ -238,13 +238,15 @@ func (s *Instance) ConnectQRBuffer(ctx echo.Context) error {
 
 func (s *Instance) Status(ctx echo.Context) error {
 	c := ctx.Request().Context()
-	var request dto.ConnectInstanceRequest
-	if err := ctx.Bind(&request); err != nil {
-		return utils.HTTPFail(ctx, http.StatusUnprocessableEntity, err, "failed to bind request body")
+
+	// Extrair ID da URL (GET /:id/status)
+	id := ctx.Param("id")
+	if id == "" {
+		return utils.HTTPFail(ctx, http.StatusBadRequest, nil, "ID é obrigatório")
 	}
 
 	// Otimização: busca status diretamente sem consultar Redis antes
-	status, err := s.whatsmiau.Status(request.ID)
+	status, err := s.whatsmiau.Status(id)
 	if err != nil {
 		zap.L().Error("failed to get status instance", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to get status instance")
@@ -252,7 +254,7 @@ func (s *Instance) Status(ctx echo.Context) error {
 
 	// Buscar remoteJid da instância
 	var remoteJid string
-	result, err := s.repo.List(c, request.ID)
+	result, err := s.repo.List(c, id)
 	if err == nil && len(result) > 0 {
 		// Parse JID para formato limpo
 		jid, parseErr := types.ParseJID(result[0].RemoteJID)
@@ -264,11 +266,11 @@ func (s *Instance) Status(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, dto.StatusInstanceResponse{
-		ID:        request.ID,
+		ID:        id,
 		Status:    string(status),
 		RemoteJid: remoteJid,
 		Instance: &dto.StatusInstanceResponseEvolutionCompatibility{
-			InstanceName: request.ID,
+			InstanceName: id,
 			State:        string(status),
 			RemoteJid:    remoteJid,
 		},
