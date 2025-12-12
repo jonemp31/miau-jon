@@ -335,3 +335,95 @@ func (s *Instance) Delete(ctx echo.Context) error {
 		Message: "instance deleted",
 	})
 }
+
+// PairPhone solicita código de pareamento via número de telefone
+func (s *Instance) PairPhone(ctx echo.Context) error {
+	c := ctx.Request().Context()
+
+	// Bind e Validação
+	var request dto.PairInstanceRequest
+	if err := ctx.Bind(&request); err != nil {
+		return utils.HTTPFail(ctx, http.StatusUnprocessableEntity, err, "failed to bind request body")
+	}
+
+	// Se o ID vier da URL, garante que está na struct
+	idParam := ctx.Param("id")
+	if idParam != "" {
+		request.ID = idParam
+	}
+
+	if err := validator.New().Struct(&request); err != nil {
+		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid request body")
+	}
+
+	// Verifica se a instância existe no banco
+	result, err := s.repo.List(c, request.ID)
+	if err != nil {
+		zap.L().Error("failed to list instances", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to check instance")
+	}
+
+	if len(result) == 0 {
+		return utils.HTTPFail(ctx, http.StatusNotFound, nil, "instance not found")
+	}
+
+	// Chama o Core para solicitar o código
+	code, err := s.whatsmiau.RequestPairingCode(c, request.ID, request.PhoneNumber)
+	if err != nil {
+		zap.L().Error("failed to generate pairing code", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to generate pairing code")
+	}
+
+	// Se já está conectado
+	if code == "already_connected" {
+		return ctx.JSON(http.StatusOK, dto.PairInstanceResponse{
+			Message: "instance already connected",
+		})
+	}
+
+	zap.L().Info("pairing code requested", zap.String("instance", request.ID), zap.String("code", code))
+
+	return ctx.JSON(http.StatusOK, dto.PairInstanceResponse{
+		Code:    code,
+		Message: "enter this code in your WhatsApp mobile app (Link Devices > Link with phone number)",
+	})
+}
+
+// PairingStatus verifica o status do pareamento
+func (s *Instance) PairingStatus(ctx echo.Context) error {
+	id := ctx.Param("id")
+	if id == "" {
+		return utils.HTTPFail(ctx, http.StatusBadRequest, nil, "instance id is required")
+	}
+
+	// Verifica se tem código em cache
+	code, hasCode := s.whatsmiau.GetPairingCode(id)
+
+	// Verifica se já conectou
+	status, err := s.whatsmiau.Status(id)
+	if err == nil && status == "open" {
+		return ctx.JSON(http.StatusOK, dto.PairingStatusResponse{
+			Status: "connected",
+		})
+	}
+
+	if hasCode {
+		return ctx.JSON(http.StatusOK, dto.PairingStatusResponse{
+			Status: "waiting",
+			Code:   code,
+		})
+	}
+
+	// Verifica se a instância existe
+	c := ctx.Request().Context()
+	result, err := s.repo.List(c, id)
+	if err != nil || len(result) == 0 {
+		return ctx.JSON(http.StatusOK, dto.PairingStatusResponse{
+			Status: "not_found",
+		})
+	}
+
+	return ctx.JSON(http.StatusOK, dto.PairingStatusResponse{
+		Status: "expired",
+	})
+}

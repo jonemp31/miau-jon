@@ -81,3 +81,26 @@ type LogoutInstanceRequest struct {
 type LogoutInstanceResponse struct {
 	Message string `json:"message,omitempty"`
 }
+
+// PairInstanceRequest - Requisição para solicitar código de pareamento
+type PairInstanceRequest struct {
+	ID          string `param:"id" validate:"required"`
+	PhoneNumber string `json:"phoneNumber" validate:"required,min=10,max=15"` // Ex: 5511999999999
+}
+
+// PairInstanceResponse - Resposta com código de pareamento
+type PairInstanceResponse struct {
+	Code    string `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+// PairingStatusRequest - Requisição para verificar status do pareamento
+type PairingStatusRequest struct {
+	ID string `param:"id" validate:"required"`
+}
+
+// PairingStatusResponse - Resposta com status do pareamento
+type PairingStatusResponse struct {
+	Status string `json:"status"` // "waiting", "connected", "expired", "not_found"
+	Code   string `json:"code,omitempty"`
+}

@@ -15,6 +15,8 @@ func Instance(group *echo.Group) {
 	group.POST("", controller.Create)
 	group.GET("", controller.List)
 	group.POST("/:id/connect", controller.Connect)
+	group.POST("/:id/pairing", controller.PairPhone)           // Pairing Code (new)
+	group.GET("/:id/pairing/status", controller.PairingStatus) // Pairing Status (new)
 	group.POST("/:id/logout", controller.Logout)
 	group.DELETE("/:id", controller.Delete)
 	group.GET("/:id/status", controller.Status)
@@ -24,6 +26,8 @@ func Instance(group *echo.Group) {
 	group.GET("/fetchInstances", controller.List)
 	group.GET("/connect/:id", controller.Connect)
 	group.GET("/connect/:id/image", controller.ConnectQRBuffer)
+	group.POST("/pair/:id", controller.PairPhone)           // Pairing Code compatibility
+	group.GET("/pair/:id/status", controller.PairingStatus) // Pairing Status compatibility
 	group.GET("/connectionState/:id", controller.Status)
 	group.DELETE("/logout/:id", controller.Logout)
 	group.DELETE("/delete/:id", controller.Delete)

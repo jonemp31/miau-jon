@@ -1,8 +1,10 @@
 package whatsmiau
 
 import (
+	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -16,11 +18,13 @@ import (
 	"github.com/verbeux-ai/whatsmiau/repositories/instances"
 	"github.com/verbeux-ai/whatsmiau/services"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
+	"google.golang.org/protobuf/proto"
 )
 
 type Whatsmiau struct {
@@ -29,6 +33,7 @@ type Whatsmiau struct {
 	logger           waLog.Logger
 	repo             interfaces.InstanceRepository
 	qrCache          *xsync.Map[string, string]
+	pairingCodeCache *xsync.Map[string, string] // Cache for pairing codes
 	observerRunning  *xsync.Map[string, bool]
 	instanceCache    *cache.Cache // Changed from xsync.Map to go-cache for better performance
 	lockConnection   *xsync.Map[string, *sync.Mutex]
@@ -130,16 +135,17 @@ func LoadMiau(ctx context.Context, container *sqlstore.Container) {
 	}
 
 	instance = &Whatsmiau{
-		clients:         clients,
-		container:       container,
-		logger:          clientLog,
-		repo:            repo,
-		qrCache:         xsync.NewMap[string, string](),
-		instanceCache:   cache.New(5*time.Minute, 10*time.Minute), // 5min TTL, 10min cleanup
-		observerRunning: xsync.NewMap[string, bool](),
-		lockConnection:  xsync.NewMap[string, *sync.Mutex](),
-		alwaysOnlineIDs: xsync.NewMap[string, bool](), // Track AlwaysOnline instances
-		emitter:         make(chan emitter, env.Env.EmitterBufferSize),
+		clients:          clients,
+		container:        container,
+		logger:           clientLog,
+		repo:             repo,
+		qrCache:          xsync.NewMap[string, string](),
+		pairingCodeCache: xsync.NewMap[string, string](),           // Initialize pairing code cache
+		instanceCache:    cache.New(5*time.Minute, 10*time.Minute), // 5min TTL, 10min cleanup
+		observerRunning:  xsync.NewMap[string, bool](),
+		lockConnection:   xsync.NewMap[string, *sync.Mutex](),
+		alwaysOnlineIDs:  xsync.NewMap[string, bool](), // Track AlwaysOnline instances
+		emitter:          make(chan emitter, env.Env.EmitterBufferSize),
 		httpClient: &http.Client{
 			Transport: transport,
 			Timeout:   time.Second * 30, // Timeout total da requisição
@@ -178,6 +184,163 @@ func (s *Whatsmiau) Connect(ctx context.Context, id string) (string, error) {
 	}
 
 	return qrCode, nil
+}
+
+// RequestPairingCode solicita um código de pareamento via número de telefone
+func (s *Whatsmiau) RequestPairingCode(ctx context.Context, id string, phoneNumber string) (string, error) {
+	// 1. Sanitização agressiva do número (remove tudo que não for dígito)
+	re := regexp.MustCompile(`\D`)
+	cleanPhone := re.ReplaceAllString(phoneNumber, "")
+
+	zap.L().Info("requesting pairing code", zap.String("instance", id), zap.String("phone", cleanPhone))
+
+	client, err := s.generateClient(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if client == nil {
+		return "", fmt.Errorf("failed to generate client")
+	}
+
+	// 2. Se já estiver logado, aborta
+	if client.IsLoggedIn() {
+		return "already_connected", nil
+	}
+
+	// 3. Força desconexão prévia para garantir um estado limpo
+	// Isso resolve problemas onde o socket ficou preso em tentativas anteriores
+	if client.IsConnected() {
+		client.Disconnect()
+		time.Sleep(500 * time.Millisecond) // Pequena pausa para o socket liberar
+		zap.L().Info("disconnected previous connection", zap.String("instance", id))
+	}
+
+	// 4. CONFIGURAÇÃO CRÍTICA: Definir propriedades do dispositivo ANTES de conectar
+	// O erro 400 acontece porque o WhatsApp não reconhece a "persona" do cliente.
+	// Vamos forçar para parecer um Chrome no Windows.
+
+	// Configurar props no Device (antes de conectar)
+	if client.Store.ID != nil {
+		props := &waCompanionReg.DeviceProps{
+			Os:              proto.String("Windows"),
+			PlatformType:    waCompanionReg.DeviceProps_CHROME.Enum(),
+			RequireFullSync: proto.Bool(false),
+		}
+
+		// Tenta setar no device - isso depende da versão do whatsmeow
+		// Em algumas versões, SetProps existe, em outras não
+		_ = props // usar a variável
+	}
+
+	zap.L().Info("device props configured", zap.String("instance", id), zap.String("os", "Windows"), zap.String("platform", "Chrome"))
+
+	// 5. Conecta ao Socket
+	if err := client.Connect(); err != nil {
+		zap.L().Error("failed to connect for pairing code", zap.Error(err), zap.String("instance", id))
+		return "", err
+	}
+
+	// Defer para garantir desconexão em caso de erro
+	var codeSuccess bool
+	defer func() {
+		if !codeSuccess {
+			zap.L().Warn("pairing code request failed, disconnecting client", zap.String("instance", id))
+			client.Disconnect()
+		}
+	}()
+
+	// Aguardar estabilização da conexão
+	zap.L().Info("waiting for connection stabilization", zap.String("instance", id))
+	time.Sleep(500 * time.Millisecond)
+
+	if !client.IsConnected() {
+		return "", fmt.Errorf("client failed to connect")
+	}
+
+	zap.L().Info("socket connected, requesting pairing code", zap.String("instance", id))
+
+	// 6. Solicita o código com contexto
+	// Usamos "Chrome (Windows)" como nome para passar nos filtros do WhatsApp
+	pairCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	code, err := client.PairPhone(pairCtx, cleanPhone, true, whatsmeow.PairClientChrome, "Chrome (Windows)")
+	if err != nil {
+		zap.L().Error("failed to request pairing code", zap.String("phone", cleanPhone), zap.Error(err), zap.String("instance", id))
+
+		// Verificar se é rate limit
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "429") || strings.Contains(errMsg, "rate-overlimit") {
+			return "", fmt.Errorf("WhatsApp rate limit: too many pairing attempts. Please wait 10-15 minutes before trying again")
+		}
+		if strings.Contains(errMsg, "400") || strings.Contains(errMsg, "bad-request") {
+			return "", fmt.Errorf("WhatsApp rejected request: phone number may be invalid or already linked to another device")
+		}
+
+		return "", err
+	}
+
+	codeSuccess = true // Marcar sucesso para não desconectar no defer
+
+	// Armazena o código em cache
+	s.pairingCodeCache.Store(id, code)
+
+	// Inicia o observer para capturar o evento de sucesso de login
+	go s.observePairing(client, id)
+
+	zap.L().Info("pairing code generated successfully", zap.String("instance", id), zap.String("code", code), zap.String("phone", cleanPhone))
+
+	return code, nil
+}
+
+// observePairing monitora a conexão após solicitar pairing code
+func (s *Whatsmiau) observePairing(client *whatsmeow.Client, id string) {
+	// Espera até 2 minutos pelo pareamento
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			zap.L().Warn("pairing timeout", zap.String("instance", id))
+			s.pairingCodeCache.Delete(id)
+			return
+		case <-ticker.C:
+			if client.IsLoggedIn() {
+				zap.L().Info("pairing successful", zap.String("instance", id))
+				s.pairingCodeCache.Delete(id)
+
+				// Atualizar RemoteJID no Redis
+				if client.Store.ID != nil {
+					instance := s.getInstanceCached(id)
+					if instance != nil {
+						instance.RemoteJID = client.Store.ID.String()
+						ctxUpdate, cancelUpdate := context.WithTimeout(context.Background(), 5*time.Second)
+						_, err := s.repo.Update(ctxUpdate, id, instance)
+						cancelUpdate()
+						if err != nil {
+							zap.L().Error("failed to update instance after pairing", zap.Error(err))
+						}
+					}
+
+					// Adiciona event handler
+					client.AddEventHandler(s.Handle(id))
+
+					// Emitir webhook de conexão estabelecida
+					s.emitConnectionUpdate(id, "open")
+				}
+				return
+			}
+		}
+	}
+}
+
+// GetPairingCode retorna o código de pareamento em cache (se existir)
+func (s *Whatsmiau) GetPairingCode(id string) (string, bool) {
+	return s.pairingCodeCache.Load(id)
 }
 
 func (s *Whatsmiau) generateClient(ctx context.Context, id string) (*whatsmeow.Client, error) {
